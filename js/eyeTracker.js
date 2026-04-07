@@ -57,7 +57,7 @@ const GAZE_THRESHOLD_DOWN = 0.57; // ratio above this → looking down
 //   constricted (iris < baseline) → scene got brighter → user is looking toward DOWN
 let pupilBaseline = null;
 const PUPIL_BASELINE_SMOOTHING = 0.008; // very slow EMA (~125 frames to 63 %)
-const PUPIL_SIGNAL_WEIGHT      = 0.12;  // max contribution to gaze ratio (±)
+const PUPIL_SIGNAL_WEIGHT      = 0.18;  // max contribution to gaze ratio (±)
 const PUPIL_SIGNAL_CLAMP       = 0.20;  // relative deviation clamped to ±20 %
 const PUPIL_BASELINE_MIN       = 0.001; // minimum plausible baseline value (sanity guard)
 
