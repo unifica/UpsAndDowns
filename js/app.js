@@ -25,6 +25,7 @@ const debugUpFill     = document.getElementById('debug-bar-up-fill');
 const debugUpLabel    = document.getElementById('debug-bar-up-label');
 const debugDownFill   = document.getElementById('debug-bar-down-fill');
 const debugDownLabel  = document.getElementById('debug-bar-down-label');
+const pupilSizeEl     = document.getElementById('pupil-size-value');
 
 let running = false;
 
@@ -52,6 +53,15 @@ function updateDebugBars(gazeRatio) {
   debugDownFill.style.width  = `${downPct}%`;
   debugUpLabel.textContent   = `${upPct}%`;
   debugDownLabel.textContent = `${downPct}%`;
+}
+
+function updatePupilSize(pupilSize) {
+  if (!pupilSizeEl) return;
+  if (pupilSize === null || pupilSize === undefined) {
+    pupilSizeEl.textContent = '—';
+    return;
+  }
+  pupilSizeEl.textContent = (pupilSize * 100).toFixed(1);
 }
 
 async function startCamera() {
@@ -92,7 +102,7 @@ startBtn.addEventListener('click', async () => {
     startBtn.textContent = 'Starting…';
     try {
       await startCamera();
-      startTracking(video, canvas, setGaze, updateDebugBars, setStatus);
+      startTracking(video, canvas, setGaze, updateDebugBars, setStatus, updatePupilSize);
       startBtn.textContent = 'Stop';
     } catch (err) {
       console.error('Camera error:', err);
@@ -106,6 +116,7 @@ startBtn.addEventListener('click', async () => {
     stopTracking(canvas);
     setGaze('neutral');
     updateDebugBars(null);
+    updatePupilSize(null);
     stopCamera();
     startBtn.textContent = 'Start';
     setStatus('Ready');

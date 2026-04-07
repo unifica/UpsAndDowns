@@ -8,8 +8,12 @@ const RIGHT_EYE_INDICES = [
   398,
 ];
 // Available only when refineLandmarks:true (indices 468–477)
+// Each group: [center, edge0, edge1, edge2, edge3]
 const LEFT_IRIS_INDICES  = [468, 469, 470, 471, 472];
 const RIGHT_IRIS_INDICES = [473, 474, 475, 476, 477];
+// Edge-only indices used for radius computation (center is index 0)
+const LEFT_IRIS_EDGE_INDICES  = [469, 470, 471, 472];
+const RIGHT_IRIS_EDGE_INDICES = [474, 475, 476, 477];
 
 // Nose contour (tip, bridge, and nostrils)
 const NOSE_INDICES = [
@@ -39,6 +43,10 @@ let animFrameId = null;
 // Gaze smoothing state (reset each session)
 let smoothedGazeRatio = 0.5;
 const GAZE_SMOOTHING      = 0.20; // EMA factor – slightly higher for quicker head-level response
+
+// Pupil-size smoothing state (reset each session)
+let smoothedPupilSize = null;
+const PUPIL_SMOOTHING = 0.15; // EMA factor for iris radius
 const GAZE_THRESHOLD_UP   = 0.43; // ratio below this → looking up
 const GAZE_THRESHOLD_DOWN = 0.57; // ratio above this → looking down
 
@@ -132,6 +140,48 @@ function computeGazeRatio(kp) {
   if (pitch === null) return vertical;
 
   return vertical * 0.7 + pitch * 0.3;
+}
+
+// ---------------------------------------------------------------------------
+// Pupil (iris) size
+// ---------------------------------------------------------------------------
+
+// Returns the average iris radius normalised by the inter-ocular distance (IOD),
+// yielding a dimensionless ratio that is stable across different camera distances.
+// Both the radius and IOD are computed in video-pixel space before dividing.
+// Typical values are in the range 0.15 – 0.35.
+// Returns null if iris landmarks are unavailable (requires refineLandmarks: true).
+function computeIrisRadius(kp) {
+  if (kp.length < 478) return null;
+
+  const radii = [];
+  for (const [centerIdx, edgeIdxs] of [
+    [468, LEFT_IRIS_EDGE_INDICES],
+    [473, RIGHT_IRIS_EDGE_INDICES],
+  ]) {
+    const center = kp[centerIdx];
+    const distances = edgeIdxs
+      .filter((i) => i < kp.length)
+      .map((i) => {
+        const dx = kp[i].x - center.x;
+        const dy = kp[i].y - center.y;
+        return Math.sqrt(dx * dx + dy * dy);
+      });
+    if (distances.length) {
+      radii.push(distances.reduce((a, b) => a + b, 0) / distances.length);
+    }
+  }
+
+  if (!radii.length) return null;
+  const avgRadius = radii.reduce((a, b) => a + b, 0) / radii.length;
+
+  // Normalise by inter-ocular distance (left iris centre → right iris centre)
+  const dx = kp[473].x - kp[468].x;
+  const dy = kp[473].y - kp[468].y;
+  const iod = Math.sqrt(dx * dx + dy * dy);
+  if (iod < 1) return null;
+
+  return avgRadius / iod;
 }
 
 // ---------------------------------------------------------------------------
@@ -267,6 +317,34 @@ function drawGazeIndicator(ctx, ratio, canvasWidth, canvasHeight) {
   ctx.restore();
 }
 
+// Draws a small pupil-size label in the bottom-left corner of the canvas.
+// `pupilSize` is the dimensionless iris-radius / IOD ratio from computeIrisRadius().
+// It is multiplied by 100 here to produce a human-readable display value (e.g. "23.4").
+function drawPupilSizeLabel(ctx, pupilSize, canvasWidth, canvasHeight) {
+  const displayValue = (pupilSize * 100).toFixed(1);
+  const label = `Pupil: ${displayValue}`;
+  const fontSize = Math.max(12, Math.round(canvasHeight * 0.038));
+  const x = 12;
+  const y = canvasHeight - 12;
+
+  ctx.save();
+  ctx.font = `600 ${fontSize}px system-ui, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  // Dark shadow for contrast against any background
+  ctx.globalAlpha = 0.7;
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 3;
+  ctx.strokeText(label, x, y);
+
+  // White text
+  ctx.globalAlpha = 0.95;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(label, x, y);
+  ctx.restore();
+}
+
 // ---------------------------------------------------------------------------
 // Overlay rendering
 // ---------------------------------------------------------------------------
@@ -283,7 +361,7 @@ function drawLandmarkDots(ctx, kp, scale, offsetX, offsetY) {
   ctx.restore();
 }
 
-function renderOverlay(ctx, faces, scale, offsetX, offsetY, gazeRatio) {
+function renderOverlay(ctx, faces, scale, offsetX, offsetY, gazeRatio, pupilSize) {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
   if (!faces || faces.length === 0) {
@@ -364,16 +442,22 @@ function renderOverlay(ctx, faces, scale, offsetX, offsetY, gazeRatio) {
   if (gazeRatio !== null && gazeRatio !== undefined) {
     drawGazeIndicator(ctx, gazeRatio, ctx.canvas.width, ctx.canvas.height);
   }
+
+  // Draw pupil-size label on the canvas when a measurement is available
+  if (pupilSize !== null && pupilSize !== undefined) {
+    drawPupilSizeLabel(ctx, pupilSize, ctx.canvas.width, ctx.canvas.height);
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Public tracking loop
 // ---------------------------------------------------------------------------
 
-export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus) {
+export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPupilSize) {
   const ctx = canvas.getContext('2d');
   // Reset smoothing and stability state for each new session
   smoothedGazeRatio = 0.5;
+  smoothedPupilSize = null;
   let lastDirection    = 'neutral';
   let pendingDirection = 'neutral';
   let stableFrames     = 0;
@@ -460,8 +544,27 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus) {
           }
         }
 
-        renderOverlay(ctx, faces, scale, offsetX, offsetY, gazeRatio);
+        // --- Pupil (iris) size ---
+        let pupilSize = null;
+        if (faces && faces.length > 0) {
+          const rawPupil = computeIrisRadius(faces[0].keypoints);
+          if (rawPupil !== null) {
+            if (smoothedPupilSize === null) {
+              smoothedPupilSize = rawPupil;
+            } else {
+              smoothedPupilSize =
+                smoothedPupilSize + PUPIL_SMOOTHING * (rawPupil - smoothedPupilSize);
+            }
+            pupilSize = smoothedPupilSize;
+          }
+        } else {
+          // No face — reset pupil smoothing so next detection starts fresh
+          smoothedPupilSize = null;
+        }
+
+        renderOverlay(ctx, faces, scale, offsetX, offsetY, gazeRatio, pupilSize);
         if (onGazeRatio) onGazeRatio(gazeRatio);
+        if (onPupilSize) onPupilSize(pupilSize);
       } catch (err) {
         console.warn('Face detection error:', err);
       }
