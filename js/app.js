@@ -19,11 +19,19 @@ const startBtn = document.getElementById('start-btn');
 const statusEl = document.getElementById('status');
 const video    = document.getElementById('video');
 const canvas   = document.getElementById('overlay');
+const wordUp   = document.querySelector('.edge-word--top');
+const wordDown = document.querySelector('.edge-word--bottom');
 
 let running = false;
 
 function setStatus(message) {
   statusEl.textContent = message;
+}
+
+function setGaze(direction) {
+  if (!wordUp || !wordDown) return;
+  wordUp.classList.toggle('edge-word--active', direction === 'up');
+  wordDown.classList.toggle('edge-word--active', direction === 'down');
 }
 
 async function startCamera() {
@@ -64,7 +72,7 @@ startBtn.addEventListener('click', async () => {
     startBtn.textContent = 'Starting…';
     try {
       await startCamera();
-      startTracking(video, canvas);
+      startTracking(video, canvas, setGaze);
       setStatus('Tracking…');
       startBtn.textContent = 'Stop';
     } catch (err) {
@@ -77,6 +85,7 @@ startBtn.addEventListener('click', async () => {
   } else {
     running = false;
     stopTracking(canvas);
+    setGaze('neutral');
     stopCamera();
     startBtn.textContent = 'Start';
     setStatus('Ready');

@@ -36,6 +36,45 @@ const LANDMARK_DOT_COLOR = '#00ff00'; // bright green for all facial feature poi
 let detector = null;
 let animFrameId = null;
 
+// Gaze smoothing state (reset each session)
+let smoothedGazeRatio = 0.5;
+const GAZE_SMOOTHING      = 0.15; // EMA factor
+const GAZE_THRESHOLD_UP   = 0.40; // ratio below this → looking up
+const GAZE_THRESHOLD_DOWN = 0.60; // ratio above this → looking down
+
+// ---------------------------------------------------------------------------
+// Gaze direction
+// ---------------------------------------------------------------------------
+
+// Returns a ratio in [0, 1] where 0 = iris at top of eye (looking up) and
+// 1 = iris at bottom of eye (looking down).  Returns null if iris data is
+// unavailable (requires refineLandmarks: true, 478 keypoints).
+function computeGazeRatio(kp) {
+  if (kp.length < 478) return null;
+
+  const results = [];
+  for (const [eyeIndices, irisCenterIdx] of [
+    [LEFT_EYE_INDICES, 468],
+    [RIGHT_EYE_INDICES, 473],
+  ]) {
+    const validEye = eyeIndices.filter((i) => i < kp.length);
+    if (!validEye.length) continue;
+
+    const eyePts    = validEye.map((i) => kp[i]);
+    const eyeTop    = Math.min(...eyePts.map((p) => p.y));
+    const eyeBottom = Math.max(...eyePts.map((p) => p.y));
+    const eyeHeight = eyeBottom - eyeTop;
+    if (eyeHeight < 1) continue;
+
+    if (irisCenterIdx >= kp.length) continue;
+    const irisCy = kp[irisCenterIdx].y;
+    results.push((irisCy - eyeTop) / eyeHeight);
+  }
+
+  if (!results.length) return null;
+  return results.reduce((a, b) => a + b, 0) / results.length;
+}
+
 // ---------------------------------------------------------------------------
 // Model
 // ---------------------------------------------------------------------------
@@ -186,8 +225,10 @@ function renderOverlay(ctx, faces, scale, offsetX, offsetY) {
 // Public tracking loop
 // ---------------------------------------------------------------------------
 
-export function startTracking(video, canvas) {
+export function startTracking(video, canvas, onGaze) {
   const ctx = canvas.getContext('2d');
+  smoothedGazeRatio = 0.5; // reset smoothing each session
+  let lastDirection = 'neutral';
 
   async function loop() {
     if (detector && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
