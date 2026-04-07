@@ -128,7 +128,26 @@ body {
   opacity: 0.88;
 }
 
-.status-text {
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
+/* Edge words */
+.edge-word {
+  position: fixed;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  font-size: clamp(3rem, 12vw, 8rem);
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--color-text);
+  pointer-events: none;
+  line-height: 1;
+  z-index: 10;
+}
+
+.edge-word--top {
+  top: 0.2em;
+}
+
+.edge-word--bottom {
+  bottom: 0.2em;
 }
