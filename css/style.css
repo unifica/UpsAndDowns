@@ -340,8 +340,6 @@ body.gaze-down #gaze-overlay {
   right: 0.2em;
   color: #3a3a3a;
   filter: blur(1.5px);
-  /* Establish positioning context for the noise canvas */
-  position: fixed;
 }
 
 .edge-word--top.edge-word--active {
@@ -398,12 +396,6 @@ body.gaze-down #gaze-overlay {
 .edge-word--top.edge-word--active {
   color: #ffcc77;
   animation: word-glow-warm 1.2s ease-in-out infinite;
-}
-
-/* When active, the UP text keeps its distortion effects but gains the warm glow;
-   the zoom animation runs on the .up-text child, not on the edge-word itself */
-.edge-word--top.edge-word--active .up-text {
-  animation: up-zoom 6s ease-in-out infinite;
 }
 
 .edge-word--bottom.edge-word--active {

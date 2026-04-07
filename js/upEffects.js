@@ -13,8 +13,10 @@
   const LINE_COUNT        = 6;    // random line segments per frame
   const DOT_RADIUS_MAX    = 2.5;
   const LINE_LENGTH_MAX   = 18;
+  const RESIZE_DEBOUNCE_MS = 200;
 
   let noiseTimer = null;
+  let resizeTimer = null;
 
   function drawNoise(canvas) {
     const ctx = canvas.getContext('2d');
@@ -68,9 +70,23 @@
     canvas.height = Math.round(rect.height * dpr);
   }
 
+  function stop() {
+    if (noiseTimer !== null) {
+      clearInterval(noiseTimer);
+      noiseTimer = null;
+    }
+    if (resizeTimer !== null) {
+      clearTimeout(resizeTimer);
+      resizeTimer = null;
+    }
+  }
+
   function start() {
-    const canvas = document.getElementById('up-noise-canvas');
+    var canvas = document.getElementById('up-noise-canvas');
     if (!canvas) return;
+
+    // Clean up any previous instance
+    stop();
 
     sizeCanvas(canvas);
     drawNoise(canvas);
@@ -80,9 +96,12 @@
       drawNoise(canvas);
     }, NOISE_INTERVAL_MS);
 
-    // Re-size on window resize
+    // Debounced resize handler
     window.addEventListener('resize', function () {
-      sizeCanvas(canvas);
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        sizeCanvas(canvas);
+      }, RESIZE_DEBOUNCE_MS);
     });
   }
 
