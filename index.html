@@ -33,6 +33,12 @@
       </main>
     </div>
 
+    <!-- TensorFlow.js + MediaPipe face-landmarks-detection loaded as classic
+         scripts so that window.faceLandmarksDetection is available before the
+         ES-module entry point runs. -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.6/dist/face-landmarks-detection.min.js"></script>
     <script src="js/app.js" type="module"></script>
   </body>
 </html>
