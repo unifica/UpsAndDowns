@@ -118,6 +118,31 @@ body {
   opacity: 0.88;
 }
 
+/* Pupil size readout */
+.pupil-readout {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.pupil-readout__label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.75rem;
+}
+
+.pupil-readout__value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  min-width: 3.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Edge words */
 .edge-word {
   position: fixed;
