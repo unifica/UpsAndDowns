@@ -238,6 +238,67 @@ body.gaze-down #gaze-overlay {
   gap: 0.08em;
 }
 
+/* --------------------------------------------------------------------------
+ * Technique 5: Cognitive-load visual effects on the UP word
+ * – Anamorphic distortion, subtle zoom, tilt, partial masking, and visual noise
+ *   combine to increase processing effort when looking at UP, which triggers
+ *   sympathetic arousal and therefore further pupil dilation.
+ * -------------------------------------------------------------------------- */
+
+/* Noise canvas overlay — positioned behind the text but inside the word block */
+.up-noise {
+  position: absolute;
+  inset: -40% -50%;
+  width: 200%;
+  height: 180%;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.18;
+}
+
+/* The UP text span — applies anamorphic stretch, tilt, partial mask, and zoom */
+.up-text {
+  display: inline-block;
+  /* Anamorphic distortion: slight vertical stretch + horizontal compression
+     mimics the look of an anamorphic lens, making the word feel "off" */
+  transform: scaleX(0.92) scaleY(1.10) rotate(-1.8deg);
+  /* Harder-to-read font stack: condensed, high-contrast serif first */
+  font-family: 'Georgia', 'Times New Roman', 'Palatino Linotype', serif;
+  font-stretch: condensed;
+  /* Partial letter masking: vertical gradient that fades parts of the glyphs */
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.35) 28%,
+    rgba(0, 0, 0, 1) 45%,
+    rgba(0, 0, 0, 0.40) 68%,
+    rgba(0, 0, 0, 1) 85%,
+    rgba(0, 0, 0, 0.50) 100%
+  );
+  mask-image: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.35) 28%,
+    rgba(0, 0, 0, 1) 45%,
+    rgba(0, 0, 0, 0.40) 68%,
+    rgba(0, 0, 0, 1) 85%,
+    rgba(0, 0, 0, 0.50) 100%
+  );
+  /* Subtle zoom animation — nearly imperceptible continuous approach toward user */
+  animation: up-zoom 6s ease-in-out infinite;
+}
+
+/* Subtle zoom: scales from 1.0 to 1.03 and back — just enough to feel like the
+   word is slowly drifting closer without being consciously noticed */
+@keyframes up-zoom {
+  0%, 100% {
+    transform: scaleX(0.92) scaleY(1.10) rotate(-1.8deg) scale(1.0);
+  }
+  50% {
+    transform: scaleX(0.92) scaleY(1.10) rotate(-1.8deg) scale(1.03);
+  }
+}
+
 /* Debug probability bars (temporary — for debugging only) */
 .debug-bar {
   display: flex;
