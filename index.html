@@ -17,7 +17,8 @@
     <!-- Technique 1: Full-screen luminance overlay -->
     <div id="gaze-overlay" aria-hidden="true"></div>
     <div class="edge-word edge-word--top">
-      UP
+      <canvas class="up-noise" id="up-noise-canvas" aria-hidden="true"></canvas>
+      <span class="up-text">UP</span>
       <div class="debug-bar">
         <div class="debug-bar__track">
           <div class="debug-bar__fill" id="debug-bar-up-fill"></div>
@@ -59,6 +60,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@1.0.6/dist/face-landmarks-detection.min.js"></script>
+    <script src="js/upEffects.js"></script>
     <script src="js/app.js" type="module"></script>
   </body>
 </html>
