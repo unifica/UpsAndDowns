@@ -15,7 +15,12 @@
   const LINE_LENGTH_MAX   = 24;
   const RESIZE_DEBOUNCE_MS = 200;
 
+  // Thin black scratch lines drawn on top of the UP text
+  const SCRATCH_COUNT        = 12;  // lines per repaint
+  const SCRATCH_INTERVAL_MS  = 2400; // refresh slower so the effect is subtle
+
   let noiseTimer = null;
+  let scratchTimer = null;
   let resizeTimer = null;
 
   function drawNoise(canvas) {
@@ -62,6 +67,42 @@
     }
   }
 
+  // Draw thin black lines that span across the canvas, partially obscuring the
+  // UP text beneath.  Lines are long enough to cross the text at random angles.
+  function drawScratchLines(canvas) {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+    if (w === 0 || h === 0) return;
+
+    ctx.clearRect(0, 0, w, h);
+
+    const diagonal = Math.sqrt(w * w + h * h);
+    for (let i = 0; i < SCRATCH_COUNT; i++) {
+      // Anchor the line at a random point near the centre of the canvas
+      const cx = (Math.random() * 0.6 + 0.2) * w;
+      const cy = (Math.random() * 0.6 + 0.2) * h;
+      const angle = Math.random() * Math.PI; // 0–180° covers all orientations
+      const halfLen = (Math.random() * 0.3 + 0.5) * diagonal;
+      const x1 = cx - Math.cos(angle) * halfLen;
+      const y1 = cy - Math.sin(angle) * halfLen;
+      const x2 = cx + Math.cos(angle) * halfLen;
+      const y2 = cy + Math.sin(angle) * halfLen;
+
+      ctx.save();
+      ctx.globalAlpha = Math.random() * 0.20 + 0.12; // 0.12–0.32, subtle
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = Math.random() * 0.8 + 0.4;     // 0.4–1.2 px, thin
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   function sizeCanvas(canvas) {
     // Match the canvas pixel buffer to its CSS-rendered size
     const rect = canvas.getBoundingClientRect();
@@ -75,6 +116,10 @@
       clearInterval(noiseTimer);
       noiseTimer = null;
     }
+    if (scratchTimer !== null) {
+      clearInterval(scratchTimer);
+      scratchTimer = null;
+    }
     if (resizeTimer !== null) {
       clearTimeout(resizeTimer);
       resizeTimer = null;
@@ -82,7 +127,8 @@
   }
 
   function start() {
-    var canvas = document.getElementById('up-noise-canvas');
+    const canvas = document.getElementById('up-noise-canvas');
+    const linesCanvas = document.getElementById('up-lines-canvas');
     if (!canvas) return;
 
     // Clean up any previous instance
@@ -96,11 +142,22 @@
       drawNoise(canvas);
     }, NOISE_INTERVAL_MS);
 
+    // Scratch lines canvas — size and draw if present
+    if (linesCanvas) {
+      sizeCanvas(linesCanvas);
+      drawScratchLines(linesCanvas);
+
+      scratchTimer = setInterval(function () {
+        drawScratchLines(linesCanvas);
+      }, SCRATCH_INTERVAL_MS);
+    }
+
     // Debounced resize handler
     window.addEventListener('resize', function () {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(function () {
         sizeCanvas(canvas);
+        if (linesCanvas) sizeCanvas(linesCanvas);
       }, RESIZE_DEBOUNCE_MS);
     });
   }

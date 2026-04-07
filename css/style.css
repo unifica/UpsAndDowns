@@ -236,6 +236,16 @@ body {
   opacity: 0.30;
 }
 
+/* Thin black scratch-line canvas — positioned on top of the UP text */
+.up-lines {
+  position: absolute;
+  inset: -50% -60%;
+  width: 220%;
+  height: 200%;
+  pointer-events: none;
+  z-index: 1;
+}
+
 /* The UP text span — applies anamorphic stretch, tilt, partial mask, flicker and zoom */
 .up-text {
   display: inline-block;
