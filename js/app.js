@@ -92,8 +92,7 @@ startBtn.addEventListener('click', async () => {
     startBtn.textContent = 'Starting…';
     try {
       await startCamera();
-      startTracking(video, canvas, setGaze, updateDebugBars);
-      setStatus('Tracking…');
+      startTracking(video, canvas, setGaze, updateDebugBars, setStatus);
       startBtn.textContent = 'Stop';
     } catch (err) {
       console.error('Camera error:', err);

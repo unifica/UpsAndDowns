@@ -46,6 +46,10 @@ const GAZE_THRESHOLD_DOWN = 0.60; // ratio above this → looking down
 // This prevents rapid flickering when the gaze ratio hovers near a threshold.
 const GAZE_STABLE_FRAMES = 4;
 
+// Number of frames collected at startup to establish the user's neutral gaze
+// baseline.  During this window the user is asked to look straight ahead.
+const CALIBRATION_FRAMES = 60;
+
 // Gaze indicator bar sizing and positioning constants
 const GAZE_INDICATOR_HEIGHT_RATIO  = 0.40; // bar height as a fraction of canvas height
 const GAZE_INDICATOR_RIGHT_MARGIN  = 18;   // px from the right edge of the canvas
@@ -320,13 +324,19 @@ function renderOverlay(ctx, faces, scale, offsetX, offsetY, gazeRatio) {
 // Public tracking loop
 // ---------------------------------------------------------------------------
 
-export function startTracking(video, canvas, onGaze, onGazeRatio) {
+export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus) {
   const ctx = canvas.getContext('2d');
   // Reset smoothing and stability state for each new session
   smoothedGazeRatio = 0.5;
   let lastDirection    = 'neutral';
   let pendingDirection = 'neutral';
   let stableFrames     = 0;
+
+  // Calibration state – collect the user's neutral gaze ratio before tracking
+  let calibrationSamples = [];
+  let calibrationOffset  = 0;
+  let isCalibrating      = true;
+  if (onStatus) onStatus('Calibrating… look straight ahead');
 
   async function loop() {
     if (detector && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
@@ -356,27 +366,42 @@ export function startTracking(video, canvas, onGaze, onGazeRatio) {
         if (faces && faces.length > 0) {
           const raw = computeGazeRatio(faces[0].keypoints);
           if (raw !== null) {
-            // Exponential moving average smoothing
-            smoothedGazeRatio =
-              smoothedGazeRatio + GAZE_SMOOTHING * (raw - smoothedGazeRatio);
-            gazeRatio = smoothedGazeRatio;
-
-            // Determine direction from smoothed ratio
-            let direction = 'neutral';
-            if (smoothedGazeRatio < GAZE_THRESHOLD_UP)   direction = 'up';
-            else if (smoothedGazeRatio > GAZE_THRESHOLD_DOWN) direction = 'down';
-
-            // Hysteresis: only commit after GAZE_STABLE_FRAMES consecutive frames
-            if (direction === pendingDirection) {
-              stableFrames++;
+            if (isCalibrating) {
+              // Collect samples to establish the user's neutral gaze position
+              calibrationSamples.push(raw);
+              gazeRatio = raw; // show raw position on the indicator during calibration
+              if (calibrationSamples.length >= CALIBRATION_FRAMES) {
+                const avg = calibrationSamples.reduce((a, b) => a + b, 0) / calibrationSamples.length;
+                calibrationOffset = avg - 0.5; // how far neutral is from the midpoint
+                isCalibrating = false;
+                smoothedGazeRatio = 0.5; // reset EMA after calibration
+                if (onStatus) onStatus('Tracking…');
+              }
             } else {
-              pendingDirection = direction;
-              stableFrames     = 1;
-            }
+              // Apply calibration offset so that the user's neutral gaze maps to 0.5
+              const adjusted = raw - calibrationOffset;
+              // Exponential moving average smoothing
+              smoothedGazeRatio =
+                smoothedGazeRatio + GAZE_SMOOTHING * (adjusted - smoothedGazeRatio);
+              gazeRatio = smoothedGazeRatio;
 
-            if (stableFrames >= GAZE_STABLE_FRAMES && direction !== lastDirection) {
-              lastDirection = direction;
-              onGaze(direction);
+              // Determine direction from smoothed ratio
+              let direction = 'neutral';
+              if (smoothedGazeRatio < GAZE_THRESHOLD_UP)   direction = 'up';
+              else if (smoothedGazeRatio > GAZE_THRESHOLD_DOWN) direction = 'down';
+
+              // Hysteresis: only commit after GAZE_STABLE_FRAMES consecutive frames
+              if (direction === pendingDirection) {
+                stableFrames++;
+              } else {
+                pendingDirection = direction;
+                stableFrames     = 1;
+              }
+
+              if (stableFrames >= GAZE_STABLE_FRAMES && direction !== lastDirection) {
+                lastDirection = direction;
+                onGaze(direction);
+              }
             }
           }
         } else {
