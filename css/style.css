@@ -199,6 +199,12 @@ body {
 .edge-word--top {
   top: 0.2em;
   right: 0.2em;
+  color: #3a3a3a;
+  filter: blur(1.5px);
+}
+
+.edge-word--top.edge-word--active {
+  filter: none;
 }
 
 .edge-word--bottom {
