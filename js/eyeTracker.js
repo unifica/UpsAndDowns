@@ -15,6 +15,13 @@ const RIGHT_IRIS_INDICES = [473, 474, 475, 476, 477];
 const LEFT_IRIS_EDGE_INDICES  = [469, 470, 471, 472];
 const RIGHT_IRIS_EDGE_INDICES = [474, 475, 476, 477];
 
+// Eyebrow landmark indices (upper contour points)
+const LEFT_EYEBROW_INDICES  = [70, 63, 105, 66, 107];
+const RIGHT_EYEBROW_INDICES = [336, 296, 334, 293, 300];
+// Upper eyelid landmarks used for eyebrow-to-eye distance measurement
+const LEFT_UPPER_EYELID  = [159, 160, 161];
+const RIGHT_UPPER_EYELID = [386, 385, 384];
+
 // Nose contour (tip, bridge, and nostrils)
 const NOSE_INDICES = [
   1, 2, 4, 5, 6, 97, 98, 168, 188, 195, 197, 326, 327, 412,
@@ -65,6 +72,39 @@ const PUPIL_BASELINE_MIN       = 0.001; // minimum plausible baseline value (san
 // before it is added to the gaze ratio.  Keeping this small (< 0.5) ensures
 // the pupil-dilation signal (PUPIL_SIGNAL_WEIGHT) remains the dominant driver.
 const GAZE_COMPONENT_SCALE = 0.12;
+
+// ---------------------------------------------------------------------------
+// Horizontal gaze contribution
+// ---------------------------------------------------------------------------
+// UP is positioned at top-right, DOWN at bottom-left.  The horizontal iris
+// position within the eye socket provides an additional directional signal.
+// In the mirrored selfie view the user's rightward gaze (toward UP) maps to
+// a lower x-ratio in video coordinates, so the contribution sign is the same
+// as the vertical ratio (lower = UP, higher = DOWN).
+const HORIZONTAL_GAZE_WEIGHT = 0.08; // max ±contribution to the combined ratio
+const HORIZONTAL_GAZE_CLAMP  = 0.20; // deviation from calibrated centre clamped to ±20 %
+
+// ---------------------------------------------------------------------------
+// Eye Aspect Ratio (EAR) directional signal
+// ---------------------------------------------------------------------------
+// When looking upward the upper eyelid retracts, producing a higher EAR.
+// When looking downward the eyelid partially covers the eye, lowering EAR.
+// Tracking EAR deviation from a slow-moving baseline yields a directional cue.
+let earBaseline = null;
+const EAR_BASELINE_SMOOTHING = 0.012; // slow EMA for resting EAR
+const EAR_SIGNAL_WEIGHT      = 0.06;  // max ± contribution to the combined ratio
+const EAR_SIGNAL_CLAMP       = 0.15;  // deviation from baseline clamped to ±15 %
+
+// ---------------------------------------------------------------------------
+// Eyebrow raise signal
+// ---------------------------------------------------------------------------
+// Eyebrows involuntarily raise when gazing upward (frontalis muscle).
+// The normalised distance from eyebrow to upper eyelid, compared against a
+// baseline, provides an additional upward-gaze signal.
+let eyebrowBaseline = null;
+const EYEBROW_BASELINE_SMOOTHING = 0.012;
+const EYEBROW_SIGNAL_WEIGHT      = 0.05; // max ± contribution
+const EYEBROW_SIGNAL_CLAMP       = 0.15;
 
 // ---------------------------------------------------------------------------
 // Blink detection (Eye Aspect Ratio)
@@ -196,6 +236,121 @@ function computeGazeRatio(kp) {
   if (pitch === null) return vertical;
 
   return vertical * 0.2 + pitch * 0.8;
+}
+
+// ---------------------------------------------------------------------------
+// Horizontal gaze ratio
+// ---------------------------------------------------------------------------
+
+// Returns a ratio in [0, 1] where 0 = iris at leftmost edge of eye (in video
+// coordinates) and 1 = iris at rightmost edge.  In the mirrored selfie view
+// the UP word (top-right of screen) corresponds to a low x-ratio in video
+// coordinates, so lower values signal "looking toward UP" — the same polarity
+// as the vertical gaze ratio.
+function computeHorizontalGazeRatio(kp) {
+  if (kp.length < 478) return null;
+
+  const results = [];
+  for (const [eyeIndices, irisCenterIdx] of [
+    [LEFT_EYE_INDICES, 468],
+    [RIGHT_EYE_INDICES, 473],
+  ]) {
+    const validEye = eyeIndices.filter((i) => i < kp.length);
+    if (!validEye.length) continue;
+
+    const eyePts   = validEye.map((i) => kp[i]);
+    const eyeLeft  = Math.min(...eyePts.map((p) => p.x));
+    const eyeRight = Math.max(...eyePts.map((p) => p.x));
+    const eyeWidth = eyeRight - eyeLeft;
+    if (eyeWidth < 1) continue;
+
+    if (irisCenterIdx >= kp.length) continue;
+    const irisCx = kp[irisCenterIdx].x;
+    results.push((irisCx - eyeLeft) / eyeWidth);
+  }
+
+  if (!results.length) return null;
+  return results.reduce((a, b) => a + b, 0) / results.length;
+}
+
+// Returns a signed offset in [−HORIZONTAL_GAZE_WEIGHT, +HORIZONTAL_GAZE_WEIGHT]
+// based on how far the horizontal gaze deviates from its calibrated centre.
+// Positive deviation (iris right in video / looking screen-left toward DOWN)
+// produces a positive offset (pushing ratio toward 1 = down).
+function computeHorizontalGazeContribution(currentHRatio, calibratedCentre) {
+  if (currentHRatio === null || calibratedCentre === null) return 0;
+  const deviation = currentHRatio - calibratedCentre;
+  const clamped   = Math.max(-HORIZONTAL_GAZE_CLAMP, Math.min(HORIZONTAL_GAZE_CLAMP, deviation));
+  return (clamped / HORIZONTAL_GAZE_CLAMP) * HORIZONTAL_GAZE_WEIGHT;
+}
+
+// ---------------------------------------------------------------------------
+// Eye Aspect Ratio (EAR) directional signal
+// ---------------------------------------------------------------------------
+
+// Returns the average EAR across both eyes.  Used as a directional cue
+// (higher EAR ≈ eyes wider open ≈ looking upward) in addition to blink detection.
+function computeAvgEAR(kp) {
+  if (kp.length < 478) return null;
+  const leftEAR  = computeEAR(kp, LEFT_EYE_VERTICAL_PAIRS, LEFT_EYE_HORIZONTAL);
+  const rightEAR = computeEAR(kp, RIGHT_EYE_VERTICAL_PAIRS, RIGHT_EYE_HORIZONTAL);
+  return (leftEAR + rightEAR) / 2;
+}
+
+// Returns a signed offset in [−EAR_SIGNAL_WEIGHT, +EAR_SIGNAL_WEIGHT].
+// Higher-than-baseline EAR (eyes wider → looking up) → negative offset.
+// Lower-than-baseline EAR (eyes narrower → looking down) → positive offset.
+function computeEARContribution(currentEAR, baseline) {
+  if (baseline === null || baseline < 0.01 || currentEAR === null) return 0;
+  const deviation = (currentEAR - baseline) / baseline;
+  const clamped   = Math.max(-EAR_SIGNAL_CLAMP, Math.min(EAR_SIGNAL_CLAMP, deviation));
+  // Invert: wider eyes (positive dev) → negative contribution (toward up)
+  return -(clamped / EAR_SIGNAL_CLAMP) * EAR_SIGNAL_WEIGHT;
+}
+
+// ---------------------------------------------------------------------------
+// Eyebrow raise signal
+// ---------------------------------------------------------------------------
+
+// Returns the average normalised distance from the eyebrow to the upper eyelid.
+// The distance is normalised by the face height (eye midpoint → chin) so it
+// is stable across camera distances.  Higher values indicate raised eyebrows
+// (common when gazing upward).
+function computeEyebrowRaiseRatio(kp) {
+  if (kp.length < 478) return null;
+
+  const chinY    = kp[152].y;
+  const eyeMidY  = (kp[468].y + kp[473].y) / 2;
+  const faceH    = chinY - eyeMidY;
+  if (faceH < 1) return null;
+
+  const distances = [];
+  for (const [browIndices, lidIndices] of [
+    [LEFT_EYEBROW_INDICES, LEFT_UPPER_EYELID],
+    [RIGHT_EYEBROW_INDICES, RIGHT_UPPER_EYELID],
+  ]) {
+    const browValid = browIndices.filter((i) => i < kp.length);
+    const lidValid  = lidIndices.filter((i) => i < kp.length);
+    if (!browValid.length || !lidValid.length) continue;
+
+    const browMeanY = browValid.reduce((s, i) => s + kp[i].y, 0) / browValid.length;
+    const lidMeanY  = lidValid.reduce((s, i) => s + kp[i].y, 0) / lidValid.length;
+    // In image coords y increases downward, eyebrow is above eyelid
+    distances.push((lidMeanY - browMeanY) / faceH);
+  }
+
+  if (!distances.length) return null;
+  return distances.reduce((a, b) => a + b, 0) / distances.length;
+}
+
+// Returns a signed offset in [−EYEBROW_SIGNAL_WEIGHT, +EYEBROW_SIGNAL_WEIGHT].
+// Raised eyebrows (positive deviation from baseline) → looking up → negative offset.
+function computeEyebrowContribution(currentRatio, baseline) {
+  if (baseline === null || baseline < 0.001 || currentRatio === null) return 0;
+  const deviation = (currentRatio - baseline) / baseline;
+  const clamped   = Math.max(-EYEBROW_SIGNAL_CLAMP, Math.min(EYEBROW_SIGNAL_CLAMP, deviation));
+  // Invert: raised brows (positive dev) → negative contribution (toward up)
+  return -(clamped / EYEBROW_SIGNAL_CLAMP) * EYEBROW_SIGNAL_WEIGHT;
 }
 
 // ---------------------------------------------------------------------------
@@ -529,14 +684,18 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
   smoothedGazeRatio = 0.5;
   smoothedPupilSize = null;
   pupilBaseline     = null;
+  earBaseline       = null;
+  eyebrowBaseline   = null;
   let lastDirection    = 'neutral';
   let pendingDirection = 'neutral';
   let stableFrames     = 0;
 
   // Calibration state – collect the user's neutral gaze ratio before tracking
-  let calibrationSamples = [];
-  let calibrationOffset  = 0;
-  let isCalibrating      = true;
+  let calibrationSamples  = [];
+  let calibrationHSamples = []; // horizontal gaze samples during calibration
+  let calibrationOffset   = 0;
+  let calibratedHCentre   = 0.5; // neutral horizontal gaze centre
+  let isCalibrating       = true;
   if (onStatus) onStatus('Calibrating… look straight ahead');
 
   async function loop() {
@@ -575,10 +734,16 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
             if (isCalibrating) {
               // Collect samples to establish the user's neutral gaze position
               calibrationSamples.push(raw);
+              // Also collect horizontal gaze samples for calibration
+              const rawH = computeHorizontalGazeRatio(faces[0].keypoints);
+              if (rawH !== null) calibrationHSamples.push(rawH);
               gazeRatio = raw; // show raw position on the indicator during calibration
               if (calibrationSamples.length >= CALIBRATION_FRAMES) {
                 const avg = calibrationSamples.reduce((a, b) => a + b, 0) / calibrationSamples.length;
                 calibrationOffset = avg - 0.5; // how far neutral is from the midpoint
+                if (calibrationHSamples.length > 0) {
+                  calibratedHCentre = calibrationHSamples.reduce((a, b) => a + b, 0) / calibrationHSamples.length;
+                }
                 isCalibrating = false;
                 smoothedGazeRatio = 0.5; // reset EMA after calibration
                 if (onStatus) onStatus('Tracking…');
@@ -588,14 +753,18 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
               // The pupil-size deviation is the DOMINANT predictor (PUPIL_SIGNAL_WEIGHT = 0.90):
               //   dilation (dark scene / looking UP)   → large negative contribution → ratio toward 0
               //   constriction (bright scene / looking DOWN) → large positive contribution → ratio toward 1
-              // The head-pitch + iris-position signal (computeGazeRatio) is attenuated so that the
-              // pupil signal clearly dominates.  Within that signal head pitch carries 80 % of the
-              // weight, reinforcing the rule:
-              //   head up + larger pupil  → high confidence UP
-              //   head down + smaller pupil → high confidence DOWN
-              const pupilContrib = computePupilGazeContribution(smoothedPupilSize, pupilBaseline);
-              const gazeComponent = 0.5 + (raw - calibrationOffset - 0.5) * GAZE_COMPONENT_SCALE;
-              const adjusted = gazeComponent + pupilContrib;
+              // Additional signals (horizontal gaze, EAR, eyebrow height) each provide
+              // a small independent contribution, reinforcing the combined prediction.
+              const kp = faces[0].keypoints;
+              const pupilContrib   = computePupilGazeContribution(smoothedPupilSize, pupilBaseline);
+              const hRatio         = computeHorizontalGazeRatio(kp);
+              const hContrib       = computeHorizontalGazeContribution(hRatio, calibratedHCentre);
+              const currentEAR     = computeAvgEAR(kp);
+              const earContrib     = computeEARContribution(currentEAR, earBaseline);
+              const browRatio      = computeEyebrowRaiseRatio(kp);
+              const browContrib    = computeEyebrowContribution(browRatio, eyebrowBaseline);
+              const gazeComponent  = 0.5 + (raw - calibrationOffset - 0.5) * GAZE_COMPONENT_SCALE;
+              const adjusted       = gazeComponent + pupilContrib + hContrib + earContrib + browContrib;
               // Exponential moving average smoothing
               smoothedGazeRatio =
                 smoothedGazeRatio + GAZE_SMOOTHING * (adjusted - smoothedGazeRatio);
@@ -631,11 +800,12 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
         }
         // When blinking, we simply hold the last known gaze direction.
 
-        // --- Pupil (iris) size ---
-        // Skip pupil measurement during blinks (eyelid occludes the iris).
+        // --- Pupil (iris) size & auxiliary baselines ---
+        // Skip measurements during blinks (eyelid occludes the iris / eye shape).
         let pupilSize = null;
         if (faces && faces.length > 0 && !blinking) {
-          const rawPupil = computeIrisRadius(faces[0].keypoints);
+          const kpAux = faces[0].keypoints;
+          const rawPupil = computeIrisRadius(kpAux);
           if (rawPupil !== null) {
             if (smoothedPupilSize === null) {
               smoothedPupilSize = rawPupil;
@@ -656,10 +826,34 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
                 pupilBaseline + PUPIL_BASELINE_SMOOTHING * (smoothedPupilSize - pupilBaseline);
             }
           }
+
+          // EAR baseline — slow-moving average of eye openness
+          const currentEAR = computeAvgEAR(kpAux);
+          if (currentEAR !== null) {
+            if (earBaseline === null) {
+              earBaseline = currentEAR;
+            } else {
+              earBaseline =
+                earBaseline + EAR_BASELINE_SMOOTHING * (currentEAR - earBaseline);
+            }
+          }
+
+          // Eyebrow baseline — slow-moving average of brow-to-eye distance
+          const browRatio = computeEyebrowRaiseRatio(kpAux);
+          if (browRatio !== null) {
+            if (eyebrowBaseline === null) {
+              eyebrowBaseline = browRatio;
+            } else {
+              eyebrowBaseline =
+                eyebrowBaseline + EYEBROW_BASELINE_SMOOTHING * (browRatio - eyebrowBaseline);
+            }
+          }
         } else if (!faces || faces.length === 0) {
-          // No face — reset pupil smoothing so next detection starts fresh
+          // No face — reset all smoothing so next detection starts fresh
           smoothedPupilSize = null;
           pupilBaseline     = null;
+          earBaseline       = null;
+          eyebrowBaseline   = null;
         }
 
         renderOverlay(ctx, faces, scale, offsetX, offsetY, gazeRatio, pupilSize);

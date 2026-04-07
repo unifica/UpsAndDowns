@@ -19,17 +19,19 @@ body {
 }
 
 body {
-  /* Technique 2: Static luminance gradient — top region is near-black (near UP
-     word) so the ambient scene is darker when looking up, slightly less dark at
-     the bottom (near DOWN word).  This creates a passive, always-on dilation
-     bias without requiring any gaze signal. */
+  /* Technique 2: Static luminance gradient — top region is pure black (near UP
+     word) so the ambient scene is maximally dark when looking up, progressively
+     lighter at the bottom (near DOWN word).  The steep gradient creates a strong
+     passive dilation bias without requiring any gaze signal. */
   background: linear-gradient(
     to bottom,
     #000000 0%,
-    #020204 18%,
+    #000000 12%,
+    #010103 22%,
     var(--color-bg) 45%,
-    #0e0e1c 72%,
-    #161626 100%
+    #0e0e1c 68%,
+    #1a1a2e 85%,
+    #222240 100%
   );
   color: var(--color-text);
   font-family: system-ui, -apple-system, sans-serif;
@@ -353,28 +355,52 @@ body {
   top: 0.2em;
   right: 0.2em;
   align-items: flex-end;
-  color: #3a3a3a;
+  /* Even lower-contrast dark text against the pure-black top region maximises
+     the darkness of the visual scene when gazing upward, driving dilation. */
+  color: #2a2a2a;
   filter: blur(1.5px);
-  text-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 0 12px rgba(0, 0, 0, 0.8);
   font-size: clamp(1.5rem, 6vw, 4rem);
+  /* Dark vignette halo around the UP word deepens the ambient darkness,
+     ensuring the retinal illuminance is as low as possible. */
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, transparent 70%);
+  padding: 0.5em 0.8em;
+  border-radius: 12px;
 }
 
 .edge-word--bottom {
   bottom: 0.2em;
   left: 0.2em;
-  /* Crisp black text in a bright white box (Issue 7) */
-  background: #ffffff;
+  /* Crisp black text in a bright blue-white box — blue-enriched white light is
+     the strongest driver of the pupillary light reflex toward constriction. */
+  background: #f0f4ff;
   color: #000000;
   font-family: system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
   font-weight: 900;
-  padding: 0.15em 0.5em;
+  padding: 0.25em 0.65em;
   border-radius: 6px;
   /* Remove any blur / noise — keep it maximally crisp */
   filter: none;
   text-shadow: none;
-  /* The bright white box drives pupillary constriction via the light reflex */
+  /* Bright glow extends the high-luminance area into the periphery, further
+     driving pupillary constriction when the user gazes at this region. */
+  box-shadow:
+    0 0 30px 10px rgba(220, 230, 255, 0.60),
+    0 0 80px 30px rgba(200, 215, 255, 0.25);
+  /* Subtle pulsing brightness animation — periodic bright pulses reinforce
+     pupillary constriction without depending on gaze detection */
+  animation: down-pulse 3s ease-in-out infinite;
 }
 
 /* Active states removed — no flash, glow, or colour change when looking at
    either word (Issue 3).  The .edge-word--active class is still toggled by JS
    for potential future use but deliberately has no visual effect. */
+
+/* Subtle brightness pulse on the DOWN word — the periodic increase in luminance
+   reinforces the pupillary light reflex (constriction) when gazing at the bottom
+   of the screen, increasing the dilation contrast relative to the UP word. */
+@keyframes down-pulse {
+  0%   { background: #f0f4ff; box-shadow: 0 0 30px 10px rgba(220,230,255,0.60), 0 0 80px 30px rgba(200,215,255,0.25); }
+  50%  { background: #ffffff; box-shadow: 0 0 40px 15px rgba(230,240,255,0.75), 0 0 100px 40px rgba(210,225,255,0.35); }
+  100% { background: #f0f4ff; box-shadow: 0 0 30px 10px rgba(220,230,255,0.60), 0 0 80px 30px rgba(200,215,255,0.25); }
+}
