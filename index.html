@@ -14,9 +14,8 @@
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
-    <!-- Technique 1 & 4: Full-screen luminance overlay + flash element -->
+    <!-- Technique 1: Full-screen luminance overlay -->
     <div id="gaze-overlay" aria-hidden="true"></div>
-    <div id="gaze-flash" aria-hidden="true"></div>
     <div class="edge-word edge-word--top">
       UP
       <div class="debug-bar">
@@ -44,6 +43,7 @@
 
         <section id="controls" class="card">
           <button id="start-btn" class="btn btn-primary">Start</button>
+          <button id="toggle-preview-btn" class="btn btn-secondary" disabled>Hide Preview</button>
           <div class="pupil-readout" aria-label="Pupil size indicator">
             <span class="pupil-readout__label">Pupil size</span>
             <span class="pupil-readout__value" id="pupil-size-value">—</span>

@@ -16,9 +16,11 @@ if ('serviceWorker' in navigator) {
 
 // DOM references
 const startBtn        = document.getElementById('start-btn');
+const togglePreviewBtn = document.getElementById('toggle-preview-btn');
 const statusEl        = document.getElementById('status');
 const video           = document.getElementById('video');
 const canvas          = document.getElementById('overlay');
+const cameraSection   = document.getElementById('camera-section');
 const wordUp          = document.querySelector('.edge-word--top');
 const wordDown        = document.querySelector('.edge-word--bottom');
 const debugUpFill     = document.getElementById('debug-bar-up-fill');
@@ -26,27 +28,12 @@ const debugUpLabel    = document.getElementById('debug-bar-up-label');
 const debugDownFill   = document.getElementById('debug-bar-down-fill');
 const debugDownLabel  = document.getElementById('debug-bar-down-label');
 const pupilSizeEl     = document.getElementById('pupil-size-value');
-const gazeFlashEl     = document.getElementById('gaze-flash');
 
 let running = false;
+let previewVisible = true;
 
 function setStatus(message) {
   statusEl.textContent = message;
-}
-
-// Technique 4: brief luminance flash when gaze direction changes.
-// A short burst of darkness (UP) or brightness (DOWN) rapidly drives the
-// pupillary light reflex before the steady-state overlay settles.
-function triggerGazeFlash(direction) {
-  if (!gazeFlashEl || direction === 'neutral') return;
-  const color = direction === 'up' ? '#000' : '#fff';
-  gazeFlashEl.style.background = color;
-  // Cancel any in-progress animation before restarting
-  gazeFlashEl.getAnimations().forEach((a) => a.cancel());
-  gazeFlashEl.animate(
-    [{ opacity: 0.88 }, { opacity: 0 }],
-    { duration: 480, easing: 'ease-out', fill: 'forwards' },
-  );
 }
 
 function setGaze(direction) {
@@ -58,8 +45,6 @@ function setGaze(direction) {
   document.body.classList.remove('gaze-up', 'gaze-down');
   if (direction === 'up') document.body.classList.add('gaze-up');
   else if (direction === 'down') document.body.classList.add('gaze-down');
-  // Technique 4: luminance flash
-  triggerGazeFlash(direction);
 }
 
 function updateDebugBars(gazeRatio) {
@@ -109,6 +94,12 @@ function stopCamera() {
   video.srcObject = null;
 }
 
+function setPreviewVisible(visible) {
+  previewVisible = visible;
+  cameraSection.classList.toggle('preview-hidden', !visible);
+  togglePreviewBtn.textContent = visible ? 'Hide Preview' : 'Show Preview';
+}
+
 // Begin loading the AI model as soon as the page is ready so it is warm
 // by the time the user clicks Start.
 loadModel(setStatus).catch((err) => {
@@ -116,6 +107,10 @@ loadModel(setStatus).catch((err) => {
   setStatus('AI model failed to load');
   startBtn.disabled = true;
   startBtn.title = 'AI model could not be loaded';
+});
+
+togglePreviewBtn.addEventListener('click', () => {
+  setPreviewVisible(!previewVisible);
 });
 
 startBtn.addEventListener('click', async () => {
@@ -127,6 +122,7 @@ startBtn.addEventListener('click', async () => {
       await startCamera();
       startTracking(video, canvas, setGaze, updateDebugBars, setStatus, updatePupilSize);
       startBtn.textContent = 'Stop';
+      togglePreviewBtn.disabled = false;
     } catch (err) {
       console.error('Camera error:', err);
       setStatus('Camera access denied');
@@ -141,6 +137,9 @@ startBtn.addEventListener('click', async () => {
     updateDebugBars(null);
     updatePupilSize(null);
     stopCamera();
+    // Restore preview visibility for next session
+    setPreviewVisible(true);
+    togglePreviewBtn.disabled = true;
     startBtn.textContent = 'Start';
     setStatus('Ready');
   }
