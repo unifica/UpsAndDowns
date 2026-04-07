@@ -1,13 +1,15 @@
 # Ups & Downs
 
-A digital magic trick powered by AI facial and eye tracking that runs entirely in your browser.
+An interactive digital magic trick that uses real-time AI to detect where you are looking and measure your pupil size — running entirely in your browser, with no data ever leaving your device.
 
 ## What is it?
 
-Ups & Downs is a browser-based Progressive Web App (PWA) that uses your device's camera and real-time AI to track your eye movements. The app analyzes where you are looking — up or down — as part of an interactive magic trick experience. No data ever leaves your device; all processing happens locally in the browser.
+Ups & Downs is a browser-based Progressive Web App (PWA) that uses your device's camera and real-time AI to track your eye movements and pupil size. The app analyses where you are looking — up or down — and monitors changes in pupil dilation as part of an interactive magic trick experience. All processing happens locally in the browser; nothing is uploaded anywhere.
 
 ## Features
 
+- **Gaze direction detection** — determines whether you are looking up or down and highlights the corresponding word on screen.
+- **Pupil-size tracking** — measures and displays relative pupil diameter in real time, enabling subtle physiological cues to be read during the trick.
 - **Real-time eye tracking** — uses MediaPipe FaceMesh (478 facial landmarks, including iris tracking) to detect and follow your eyes at video-frame rate.
 - **AI-powered** — runs TensorFlow.js in the browser; no server-side processing required.
 - **Visual overlay** — renders glowing eye-contour ellipses and iris-centre dots on a transparent canvas laid over the live camera feed.
