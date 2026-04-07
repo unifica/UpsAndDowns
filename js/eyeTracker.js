@@ -82,7 +82,7 @@ const GAZE_COMPONENT_SCALE = 0.12;
 // a lower x-ratio in video coordinates, so the contribution sign is the same
 // as the vertical ratio (lower = UP, higher = DOWN).
 const HORIZONTAL_GAZE_WEIGHT = 0.08; // max ±contribution to the combined ratio
-const HORIZONTAL_GAZE_CLAMP  = 0.20; // deviation from calibrated centre clamped to ±20 %
+const HORIZONTAL_GAZE_CLAMP  = 0.20; // deviation from calibrated center clamped to ±20 %
 
 // ---------------------------------------------------------------------------
 // Eye Aspect Ratio (EAR) directional signal
@@ -274,12 +274,12 @@ function computeHorizontalGazeRatio(kp) {
 }
 
 // Returns a signed offset in [−HORIZONTAL_GAZE_WEIGHT, +HORIZONTAL_GAZE_WEIGHT]
-// based on how far the horizontal gaze deviates from its calibrated centre.
-// Positive deviation (iris right in video / looking screen-left toward DOWN)
+// based on how far the horizontal gaze deviates from its calibrated center.
+// Positive deviation (iris right in video / looking toward bottom-left DOWN word)
 // produces a positive offset (pushing ratio toward 1 = down).
-function computeHorizontalGazeContribution(currentHRatio, calibratedCentre) {
-  if (currentHRatio === null || calibratedCentre === null) return 0;
-  const deviation = currentHRatio - calibratedCentre;
+function computeHorizontalGazeContribution(currentHRatio, calibratedCenter) {
+  if (currentHRatio === null || calibratedCenter === null) return 0;
+  const deviation = currentHRatio - calibratedCenter;
   const clamped   = Math.max(-HORIZONTAL_GAZE_CLAMP, Math.min(HORIZONTAL_GAZE_CLAMP, deviation));
   return (clamped / HORIZONTAL_GAZE_CLAMP) * HORIZONTAL_GAZE_WEIGHT;
 }
@@ -694,7 +694,7 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
   let calibrationSamples  = [];
   let calibrationHSamples = []; // horizontal gaze samples during calibration
   let calibrationOffset   = 0;
-  let calibratedHCentre   = 0.5; // neutral horizontal gaze centre
+  let calibratedHCenter   = 0.5; // neutral horizontal gaze center
   let isCalibrating       = true;
   if (onStatus) onStatus('Calibrating… look straight ahead');
 
@@ -742,7 +742,7 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
                 const avg = calibrationSamples.reduce((a, b) => a + b, 0) / calibrationSamples.length;
                 calibrationOffset = avg - 0.5; // how far neutral is from the midpoint
                 if (calibrationHSamples.length > 0) {
-                  calibratedHCentre = calibrationHSamples.reduce((a, b) => a + b, 0) / calibrationHSamples.length;
+                  calibratedHCenter = calibrationHSamples.reduce((a, b) => a + b, 0) / calibrationHSamples.length;
                 }
                 isCalibrating = false;
                 smoothedGazeRatio = 0.5; // reset EMA after calibration
@@ -758,7 +758,7 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
               const kp = faces[0].keypoints;
               const pupilContrib   = computePupilGazeContribution(smoothedPupilSize, pupilBaseline);
               const hRatio         = computeHorizontalGazeRatio(kp);
-              const hContrib       = computeHorizontalGazeContribution(hRatio, calibratedHCentre);
+              const hContrib       = computeHorizontalGazeContribution(hRatio, calibratedHCenter);
               const currentEAR     = computeAvgEAR(kp);
               const earContrib     = computeEARContribution(currentEAR, earBaseline);
               const browRatio      = computeEyebrowRaiseRatio(kp);

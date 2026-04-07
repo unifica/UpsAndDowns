@@ -355,7 +355,7 @@ body {
   top: 0.2em;
   right: 0.2em;
   align-items: flex-end;
-  /* Even lower-contrast dark text against the pure-black top region maximises
+  /* Even lower-contrast dark text against the pure-black top region maximizes
      the darkness of the visual scene when gazing upward, driving dilation. */
   color: #2a2a2a;
   filter: blur(1.5px);
