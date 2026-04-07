@@ -5,6 +5,39 @@
 // increasing cognitive load (and thereby sympathetic arousal / pupil dilation).
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Word replacement — the UP label is swapped for a randomly chosen
+// complicated word each time the page loads.
+// ---------------------------------------------------------------------------
+(function replaceUpWord() {
+  'use strict';
+
+  var WORDS = [
+    'Ephemeral', 'Mellifluous', 'Serendipity', 'Perspicacious', 'Loquacious',
+    'Magnanimous', 'Ineffable', 'Ethereal', 'Resplendent', 'Nefarious',
+    'Quintessential', 'Perfidious', 'Incandescent', 'Ubiquitous', 'Equivocal',
+    'Sycophantic', 'Crepuscular', 'Diaphanous', 'Melancholic', 'Obsequious',
+    'Tenacious', 'Vicissitude', 'Sesquipedalian', 'Supercilious', 'Gossamer',
+    'Defenestration', 'Callipygian', 'Schadenfreude', 'Weltanschauung', 'Zugzwang',
+    'Absquatulate', 'Collywobbles', 'Flibbertigibbet', 'Widdershins', 'Labyrinthine',
+    'Surreptitious', 'Pulchritude', 'Soliloquy', 'Limpid', 'Euphonious',
+    'Perspicuity', 'Recalcitrant', 'Obstreperous', 'Exacerbate', 'Plethora',
+    'Ostentatious', 'Pontificate', 'Nonchalant', 'Superfluous', 'Discombobulate'
+  ];
+
+  function setRandomWord() {
+    var el = document.querySelector('.up-text');
+    if (!el) return;
+    el.textContent = WORDS[Math.floor(Math.random() * WORDS.length)];
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setRandomWord);
+  } else {
+    setRandomWord();
+  }
+})();
+
 (function initUpNoise() {
   'use strict';
 
