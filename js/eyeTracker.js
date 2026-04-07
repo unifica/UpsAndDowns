@@ -11,8 +11,26 @@ const RIGHT_EYE_INDICES = [
 const LEFT_IRIS_INDICES  = [468, 469, 470, 471, 472];
 const RIGHT_IRIS_INDICES = [473, 474, 475, 476, 477];
 
+// Nose contour (tip, bridge, and nostrils)
+const NOSE_INDICES = [
+  1, 2, 4, 5, 6, 97, 98, 168, 188, 195, 197, 326, 327, 412,
+];
+
+// Mouth outer and inner lip contours
+// Upper half (left corner → upper lip → right corner), lower half (right corner → lower lip → left corner)
+const MOUTH_OUTER_INDICES = [
+  /* upper */ 61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291,
+  /* lower */ 375, 321, 405, 314, 17, 84, 181, 91, 146,
+];
+const MOUTH_INNER_INDICES = [
+  /* upper */ 78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308,
+  /* lower */ 324, 318, 402, 317, 14, 87, 178, 88, 95,
+];
+
 const LEFT_EYE_COLOR     = '#6c63ff'; // brand purple
 const RIGHT_EYE_COLOR    = '#63e6ff'; // cyan complement
+const NOSE_COLOR         = '#ff6363'; // warm red for nose
+const MOUTH_COLOR        = '#ffd663'; // amber/gold for mouth
 const LANDMARK_DOT_COLOR = '#00ff00'; // bright green for all facial feature points
 
 let detector = null;
@@ -137,6 +155,29 @@ function renderOverlay(ctx, faces, scaleX, scaleY) {
         drawGlowEllipse(ctx, getBounds(pts), color, 1);
         drawGlowDot(ctx, pts[0].x, pts[0].y, color);
       }
+    }
+
+    // --- Nose ellipse ---
+    {
+      const valid = NOSE_INDICES.filter((i) => i < kp.length);
+      if (valid.length) {
+        const pts = valid.map((i) => ({
+          x: kp[i].x * scaleX,
+          y: kp[i].y * scaleY,
+        }));
+        drawGlowEllipse(ctx, getBounds(pts), NOSE_COLOR);
+      }
+    }
+
+    // --- Mouth ellipses (outer contour + inner contour) ---
+    for (const indices of [MOUTH_OUTER_INDICES, MOUTH_INNER_INDICES]) {
+      const valid = indices.filter((i) => i < kp.length);
+      if (!valid.length) continue;
+      const pts = valid.map((i) => ({
+        x: kp[i].x * scaleX,
+        y: kp[i].y * scaleY,
+      }));
+      drawGlowEllipse(ctx, getBounds(pts), MOUTH_COLOR);
     }
   }
 }
