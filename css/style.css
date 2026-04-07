@@ -338,6 +338,7 @@ body.gaze-down #gaze-overlay {
 .edge-word--top {
   top: 0.2em;
   right: 0.2em;
+  align-items: flex-end;
   color: #3a3a3a;
   filter: blur(1.5px);
 }
