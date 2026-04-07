@@ -57,14 +57,14 @@ const GAZE_THRESHOLD_DOWN = 0.57; // ratio above this → looking down
 //   constricted (iris < baseline) → scene got brighter → user is looking toward DOWN
 let pupilBaseline = null;
 const PUPIL_BASELINE_SMOOTHING = 0.008; // very slow EMA (~125 frames to 63 %)
-const PUPIL_SIGNAL_WEIGHT      = 0.72;  // max contribution to gaze ratio (±) — pupil dilation is the dominant predictor
+const PUPIL_SIGNAL_WEIGHT      = 0.90;  // max contribution to gaze ratio (±) — pupil dilation is the dominant predictor
 const PUPIL_SIGNAL_CLAMP       = 0.20;  // relative deviation clamped to ±20 %
 const PUPIL_BASELINE_MIN       = 0.001; // minimum plausible baseline value (sanity guard)
 
 // Scaling factor applied to the head-pitch + iris-position combined deviation
 // before it is added to the gaze ratio.  Keeping this small (< 0.5) ensures
 // the pupil-dilation signal (PUPIL_SIGNAL_WEIGHT) remains the dominant driver.
-const GAZE_COMPONENT_SCALE = 0.22;
+const GAZE_COMPONENT_SCALE = 0.12;
 
 // ---------------------------------------------------------------------------
 // Blink detection (Eye Aspect Ratio)
@@ -585,7 +585,7 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
               }
             } else {
               // Apply calibration offset so that the user's neutral gaze maps to 0.5.
-              // The pupil-size deviation is the DOMINANT predictor (PUPIL_SIGNAL_WEIGHT = 0.72):
+              // The pupil-size deviation is the DOMINANT predictor (PUPIL_SIGNAL_WEIGHT = 0.90):
               //   dilation (dark scene / looking UP)   → large negative contribution → ratio toward 0
               //   constriction (bright scene / looking DOWN) → large positive contribution → ratio toward 1
               // The head-pitch + iris-position signal (computeGazeRatio) is attenuated so that the
