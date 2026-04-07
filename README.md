@@ -15,7 +15,7 @@ Ups & Downs is a browser-based Progressive Web App (PWA) that uses your device's
 - **Real-time eye tracking** — uses MediaPipe FaceMesh (478 facial landmarks, including iris tracking) to detect and follow your eyes at video-frame rate.
 - **AI-powered** — runs TensorFlow.js in the browser; no server-side processing required.
 - **Visual overlay** — renders glowing ellipses over eye contours, irises, nose, and mouth; a vertical gaze-ratio indicator bar and a live pupil-size label are drawn on the canvas.
-- **Randomised chosen word** — the top word is replaced with a randomly selected complex word on each page load to increase cognitive effort and arousal.
+- **Randomised top word** — the top word is replaced with a randomly selected complex word on each page load to increase cognitive effort and arousal.
 - **Progressive Web App** — installable on desktop and mobile; works offline after the first load thanks to a service worker.
 - **Privacy-first** — the camera feed is processed locally and never uploaded anywhere.
 
@@ -93,9 +93,9 @@ Three techniques are currently active:
 
 | # | Technique | Mechanism |
 |---|---|---|
-| 2 | **Background luminance gradient** | The page background is a static top-to-bottom gradient — near-black at the top where the chosen word lives, progressively lighter toward the bottom where DOWN lives.  This creates a passive, always-on luminance bias with no gaze signal required. |
-| 4 | **Static contrast presentation** | The chosen word at the top is rendered in small, dark-grey, blurred text against a near-black background, keeping local luminance low and encouraging pupil dilation.  DOWN is presented in large, crisp black text inside a bright white box, driving pupillary constriction via the **pupillary light reflex**. |
-| 5 | **Cognitive-load visual effects on the chosen word** | The top word is replaced by a randomly chosen complex word on each page load, then distorted with an anamorphic transform, partially masked, and overlaid with animated noise and slow-refreshing scratch lines.  The increased processing effort required to read it raises sympathetic arousal and drives the task-evoked pupillary response (TEPR). |
+| 2 | **Background luminance gradient** | The page background is a static top-to-bottom gradient — near-black at the top where the top word lives, progressively lighter toward the bottom where DOWN lives.  This creates a passive, always-on luminance bias with no gaze signal required. |
+| 4 | **Static contrast presentation** | The top word is rendered in small, dark-grey, blurred text against a near-black background, keeping local luminance low and encouraging pupil dilation.  DOWN is presented in large, crisp black text inside a bright white box, driving pupillary constriction via the **pupillary light reflex**. |
+| 5 | **Cognitive-load visual effects on the top word** | The top word is replaced by a randomly chosen complex word on each page load, then distorted with an anamorphic transform, partially masked, and overlaid with animated noise and slow-refreshing scratch lines.  The increased processing effort required to read it raises sympathetic arousal and drives the task-evoked pupillary response (TEPR). |
 
 Two techniques from an earlier version are no longer active:
 
