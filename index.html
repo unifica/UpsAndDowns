@@ -17,11 +17,6 @@
     <div class="edge-word edge-word--top">UP</div>
     <div class="edge-word edge-word--bottom">DOWN</div>
     <div id="app">
-      <header class="app-header">
-        <h1>Ups &amp; Downs</h1>
-        <p class="tagline">A digital magic trick</p>
-      </header>
-
       <main class="app-main">
         <section id="camera-section" class="card">
           <video id="video" autoplay playsinline muted></video>
@@ -30,7 +25,7 @@
 
         <section id="controls" class="card">
           <button id="start-btn" class="btn btn-primary">Start</button>
-          <p id="status" class="status-text">Ready</p>
+          <p id="status" class="status-text" aria-hidden="true"></p>
         </section>
       </main>
     </div>
