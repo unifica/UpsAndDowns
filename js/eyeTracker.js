@@ -42,6 +42,15 @@ const GAZE_SMOOTHING      = 0.15; // EMA factor
 const GAZE_THRESHOLD_UP   = 0.40; // ratio below this → looking up
 const GAZE_THRESHOLD_DOWN = 0.60; // ratio above this → looking down
 
+// Number of consecutive frames a direction must persist before it is reported.
+// This prevents rapid flickering when the gaze ratio hovers near a threshold.
+const GAZE_STABLE_FRAMES = 4;
+
+// Gaze indicator bar sizing and positioning constants
+const GAZE_INDICATOR_HEIGHT_RATIO  = 0.40; // bar height as a fraction of canvas height
+const GAZE_INDICATOR_RIGHT_MARGIN  = 18;   // px from the right edge of the canvas
+const NO_FACE_HINT_FONT_SIZE_RATIO = 0.045; // font size as a fraction of canvas height
+
 // ---------------------------------------------------------------------------
 // Gaze direction
 // ---------------------------------------------------------------------------
@@ -144,19 +153,100 @@ function drawGlowDot(ctx, x, y, color, radius = 3) {
   ctx.restore();
 }
 
+// Draws a compact vertical gaze-ratio indicator bar on the right edge of the
+// canvas.  The moving dot sits at the smoothed ratio position (0 = top,
+// 1 = bottom).  Threshold lines mark the up/down zones.
+function drawGazeIndicator(ctx, ratio, canvasWidth, canvasHeight) {
+  const barH  = Math.round(canvasHeight * GAZE_INDICATOR_HEIGHT_RATIO);
+  const barW  = 6;
+  const x     = canvasWidth - GAZE_INDICATOR_RIGHT_MARGIN;
+  const y     = Math.round((canvasHeight - barH) / 2);
+
+  ctx.save();
+
+  // Track background
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = '#888';
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(x, y, barW, barH, 3);
+  } else {
+    ctx.rect(x, y, barW, barH);
+  }
+  ctx.fill();
+
+  // Up-zone highlight
+  ctx.globalAlpha = 0.20;
+  ctx.fillStyle = LEFT_EYE_COLOR;
+  const upZoneH = GAZE_THRESHOLD_UP * barH;
+  ctx.fillRect(x, y, barW, upZoneH);
+
+  // Down-zone highlight
+  ctx.fillStyle = RIGHT_EYE_COLOR;
+  const downZoneY = y + GAZE_THRESHOLD_DOWN * barH;
+  ctx.fillRect(x, downZoneY, barW, barH - (downZoneY - y));
+
+  // Threshold lines
+  ctx.globalAlpha = 0.6;
+  ctx.strokeStyle = LEFT_EYE_COLOR;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x - 2, y + GAZE_THRESHOLD_UP * barH);
+  ctx.lineTo(x + barW + 2, y + GAZE_THRESHOLD_UP * barH);
+  ctx.stroke();
+
+  ctx.strokeStyle = RIGHT_EYE_COLOR;
+  ctx.beginPath();
+  ctx.moveTo(x - 2, y + GAZE_THRESHOLD_DOWN * barH);
+  ctx.lineTo(x + barW + 2, y + GAZE_THRESHOLD_DOWN * barH);
+  ctx.stroke();
+
+  // Moving indicator dot
+  const dotY   = y + ratio * barH;
+  const dotCol = ratio < GAZE_THRESHOLD_UP   ? LEFT_EYE_COLOR
+               : ratio > GAZE_THRESHOLD_DOWN  ? RIGHT_EYE_COLOR
+               : '#ffffff';
+  ctx.globalAlpha = 1;
+  ctx.fillStyle   = dotCol;
+  ctx.shadowColor = dotCol;
+  ctx.shadowBlur  = 10;
+  ctx.beginPath();
+  ctx.arc(x + barW / 2, dotY, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
 // ---------------------------------------------------------------------------
 // Overlay rendering
 // ---------------------------------------------------------------------------
 
 function drawLandmarkDots(ctx, kp, scale, offsetX, offsetY) {
+  ctx.save();
+  ctx.fillStyle = LANDMARK_DOT_COLOR;
+  ctx.globalAlpha = 0.25;
   for (const point of kp) {
-    drawGlowDot(ctx, point.x * scale + offsetX, point.y * scale + offsetY, LANDMARK_DOT_COLOR, 2);
+    ctx.beginPath();
+    ctx.arc(point.x * scale + offsetX, point.y * scale + offsetY, 1, 0, Math.PI * 2);
+    ctx.fill();
   }
+  ctx.restore();
 }
 
-function renderOverlay(ctx, faces, scale, offsetX, offsetY) {
+function renderOverlay(ctx, faces, scale, offsetX, offsetY, gazeRatio) {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  if (!faces || faces.length === 0) return;
+
+  if (!faces || faces.length === 0) {
+    // Subtle hint that no face is in frame
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `${Math.round(ctx.canvas.height * NO_FACE_HINT_FONT_SIZE_RATIO)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('No face detected', ctx.canvas.width / 2, ctx.canvas.height / 2);
+    ctx.restore();
+    return;
+  }
 
   for (const face of faces) {
     const kp = face.keypoints;
@@ -219,6 +309,11 @@ function renderOverlay(ctx, faces, scale, offsetX, offsetY) {
       drawGlowEllipse(ctx, getBounds(pts), MOUTH_COLOR);
     }
   }
+
+  // Draw gaze-ratio indicator bar if a valid ratio is available
+  if (gazeRatio !== null && gazeRatio !== undefined) {
+    drawGazeIndicator(ctx, gazeRatio, ctx.canvas.width, ctx.canvas.height);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -227,8 +322,11 @@ function renderOverlay(ctx, faces, scale, offsetX, offsetY) {
 
 export function startTracking(video, canvas, onGaze) {
   const ctx = canvas.getContext('2d');
-  smoothedGazeRatio = 0.5; // reset smoothing each session
-  let lastDirection = 'neutral';
+  // Reset smoothing and stability state for each new session
+  smoothedGazeRatio = 0.5;
+  let lastDirection    = 'neutral';
+  let pendingDirection = 'neutral';
+  let stableFrames     = 0;
 
   async function loop() {
     if (detector && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
@@ -249,10 +347,49 @@ export function startTracking(video, canvas, onGaze) {
         const ch = canvas.height;
         const vw = video.videoWidth;
         const vh = video.videoHeight;
-        const scale = Math.max(cw / vw, ch / vh);
+        const scale   = Math.max(cw / vw, ch / vh);
         const offsetX = (cw - vw * scale) / 2;
         const offsetY = (ch - vh * scale) / 2;
-        renderOverlay(ctx, faces, scale, offsetX, offsetY);
+
+        // --- Gaze detection ---
+        let gazeRatio = null;
+        if (faces && faces.length > 0) {
+          const raw = computeGazeRatio(faces[0].keypoints);
+          if (raw !== null) {
+            // Exponential moving average smoothing
+            smoothedGazeRatio =
+              smoothedGazeRatio + GAZE_SMOOTHING * (raw - smoothedGazeRatio);
+            gazeRatio = smoothedGazeRatio;
+
+            // Determine direction from smoothed ratio
+            let direction = 'neutral';
+            if (smoothedGazeRatio < GAZE_THRESHOLD_UP)   direction = 'up';
+            else if (smoothedGazeRatio > GAZE_THRESHOLD_DOWN) direction = 'down';
+
+            // Hysteresis: only commit after GAZE_STABLE_FRAMES consecutive frames
+            if (direction === pendingDirection) {
+              stableFrames++;
+            } else {
+              pendingDirection = direction;
+              stableFrames     = 1;
+            }
+
+            if (stableFrames >= GAZE_STABLE_FRAMES && direction !== lastDirection) {
+              lastDirection = direction;
+              onGaze(direction);
+            }
+          }
+        } else {
+          // No face in frame — reset to neutral
+          if (lastDirection !== 'neutral') {
+            lastDirection    = 'neutral';
+            pendingDirection = 'neutral';
+            stableFrames     = 0;
+            onGaze('neutral');
+          }
+        }
+
+        renderOverlay(ctx, faces, scale, offsetX, offsetY, gazeRatio);
       } catch (err) {
         console.warn('Face detection error:', err);
       }
