@@ -8,11 +8,11 @@
 (function initUpNoise() {
   'use strict';
 
-  const NOISE_INTERVAL_MS = 120;  // repaint interval
-  const DOT_COUNT         = 18;   // random dots per frame
-  const LINE_COUNT        = 6;    // random line segments per frame
-  const DOT_RADIUS_MAX    = 2.5;
-  const LINE_LENGTH_MAX   = 18;
+  const NOISE_INTERVAL_MS = 80;   // repaint interval (faster for more agitation)
+  const DOT_COUNT         = 35;   // random dots per frame
+  const LINE_COUNT        = 14;   // random line segments per frame
+  const DOT_RADIUS_MAX    = 3.0;
+  const LINE_LENGTH_MAX   = 24;
   const RESIZE_DEBOUNCE_MS = 200;
 
   let noiseTimer = null;
@@ -33,10 +33,10 @@
       const x = Math.random() * w;
       const y = Math.random() * h;
       const r = Math.random() * DOT_RADIUS_MAX + 0.5;
-      const alpha = Math.random() * 0.5 + 0.15;
+      const alpha = Math.random() * 0.6 + 0.20;
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.fillStyle = Math.random() > 0.5 ? '#888' : '#555';
+      ctx.fillStyle = Math.random() > 0.5 ? '#999' : '#444';
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
@@ -49,11 +49,11 @@
       const y = Math.random() * h;
       const len = Math.random() * LINE_LENGTH_MAX + 4;
       const angle = Math.random() * Math.PI * 2;
-      const alpha = Math.random() * 0.35 + 0.1;
+      const alpha = Math.random() * 0.45 + 0.12;
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.strokeStyle = Math.random() > 0.5 ? '#777' : '#444';
-      ctx.lineWidth = Math.random() * 1.2 + 0.3;
+      ctx.strokeStyle = Math.random() > 0.5 ? '#888' : '#333';
+      ctx.lineWidth = Math.random() * 1.5 + 0.3;
       ctx.beginPath();
       ctx.moveTo(x, y);
       ctx.lineTo(x + Math.cos(angle) * len, y + Math.sin(angle) * len);

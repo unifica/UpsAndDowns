@@ -57,14 +57,55 @@ const GAZE_THRESHOLD_DOWN = 0.57; // ratio above this → looking down
 //   constricted (iris < baseline) → scene got brighter → user is looking toward DOWN
 let pupilBaseline = null;
 const PUPIL_BASELINE_SMOOTHING = 0.008; // very slow EMA (~125 frames to 63 %)
-const PUPIL_SIGNAL_WEIGHT      = 0.55;  // max contribution to gaze ratio (±) — pupil dilation is the dominant predictor
+const PUPIL_SIGNAL_WEIGHT      = 0.72;  // max contribution to gaze ratio (±) — pupil dilation is the dominant predictor
 const PUPIL_SIGNAL_CLAMP       = 0.20;  // relative deviation clamped to ±20 %
 const PUPIL_BASELINE_MIN       = 0.001; // minimum plausible baseline value (sanity guard)
 
 // Scaling factor applied to the head-pitch + iris-position combined deviation
 // before it is added to the gaze ratio.  Keeping this small (< 0.5) ensures
 // the pupil-dilation signal (PUPIL_SIGNAL_WEIGHT) remains the dominant driver.
-const GAZE_COMPONENT_SCALE = 0.30;
+const GAZE_COMPONENT_SCALE = 0.22;
+
+// ---------------------------------------------------------------------------
+// Blink detection (Eye Aspect Ratio)
+// ---------------------------------------------------------------------------
+// Uses the standard EAR formula: the ratio of the height of the eye opening
+// to its width.  During a blink EAR drops sharply.  We skip gaze updates
+// for frames where EAR is below the threshold so that the momentary eyelid
+// closure isn't misinterpreted as a downward gaze shift.
+
+// Upper-lid and lower-lid landmark pairs used to measure vertical opening.
+const LEFT_EYE_VERTICAL_PAIRS  = [[159, 145], [158, 153]]; // (top, bottom)
+const RIGHT_EYE_VERTICAL_PAIRS = [[386, 374], [385, 380]];
+// Horizontal eye width landmarks
+const LEFT_EYE_HORIZONTAL  = [33, 133]; // inner corner, outer corner
+const RIGHT_EYE_HORIZONTAL = [362, 263];
+
+const BLINK_EAR_THRESHOLD = 0.18; // below this the eye is considered closed
+
+function dist(a, b) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function computeEAR(kp, verticalPairs, horizontalPair) {
+  let vertSum = 0;
+  for (const [topIdx, botIdx] of verticalPairs) {
+    vertSum += dist(kp[topIdx], kp[botIdx]);
+  }
+  const horiz = dist(kp[horizontalPair[0]], kp[horizontalPair[1]]);
+  if (horiz < 0.0001) return 1; // avoid division by zero
+  return vertSum / (2 * horiz);
+}
+
+function isBlinking(kp) {
+  if (kp.length < 478) return false;
+  const leftEAR  = computeEAR(kp, LEFT_EYE_VERTICAL_PAIRS, LEFT_EYE_HORIZONTAL);
+  const rightEAR = computeEAR(kp, RIGHT_EYE_VERTICAL_PAIRS, RIGHT_EYE_HORIZONTAL);
+  const avgEAR   = (leftEAR + rightEAR) / 2;
+  return avgEAR < BLINK_EAR_THRESHOLD;
+}
 
 // Number of consecutive frames a direction must persist before it is reported.
 // This prevents rapid flickering when the gaze ratio hovers near a threshold.
@@ -527,7 +568,8 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
 
         // --- Gaze detection ---
         let gazeRatio = null;
-        if (faces && faces.length > 0) {
+        const blinking = faces && faces.length > 0 && isBlinking(faces[0].keypoints);
+        if (faces && faces.length > 0 && !blinking) {
           const raw = computeGazeRatio(faces[0].keypoints);
           if (raw !== null) {
             if (isCalibrating) {
@@ -543,16 +585,15 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
               }
             } else {
               // Apply calibration offset so that the user's neutral gaze maps to 0.5.
-              // The pupil-size deviation is the DOMINANT predictor (PUPIL_SIGNAL_WEIGHT = 0.55):
+              // The pupil-size deviation is the DOMINANT predictor (PUPIL_SIGNAL_WEIGHT = 0.72):
               //   dilation (dark scene / looking UP)   → large negative contribution → ratio toward 0
               //   constriction (bright scene / looking DOWN) → large positive contribution → ratio toward 1
-              // The head-pitch + iris-position signal (computeGazeRatio) is attenuated to 30 % of its
-              // raw deviation so that the pupil signal clearly dominates.  Within that signal
-              // head pitch carries 80 % of the weight, reinforcing the rule:
+              // The head-pitch + iris-position signal (computeGazeRatio) is attenuated so that the
+              // pupil signal clearly dominates.  Within that signal head pitch carries 80 % of the
+              // weight, reinforcing the rule:
               //   head up + larger pupil  → high confidence UP
               //   head down + smaller pupil → high confidence DOWN
               const pupilContrib = computePupilGazeContribution(smoothedPupilSize, pupilBaseline);
-              // Scale gaze deviation to 30 % so pupil + head-pitch are the heavy hitters
               const gazeComponent = 0.5 + (raw - calibrationOffset - 0.5) * GAZE_COMPONENT_SCALE;
               const adjusted = gazeComponent + pupilContrib;
               // Exponential moving average smoothing
@@ -579,7 +620,7 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
               }
             }
           }
-        } else {
+        } else if (!faces || faces.length === 0) {
           // No face in frame — reset to neutral
           if (lastDirection !== 'neutral') {
             lastDirection    = 'neutral';
@@ -588,10 +629,12 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
             onGaze('neutral');
           }
         }
+        // When blinking, we simply hold the last known gaze direction.
 
         // --- Pupil (iris) size ---
+        // Skip pupil measurement during blinks (eyelid occludes the iris).
         let pupilSize = null;
-        if (faces && faces.length > 0) {
+        if (faces && faces.length > 0 && !blinking) {
           const rawPupil = computeIrisRadius(faces[0].keypoints);
           if (rawPupil !== null) {
             if (smoothedPupilSize === null) {
@@ -613,7 +656,7 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
                 pupilBaseline + PUPIL_BASELINE_SMOOTHING * (smoothedPupilSize - pupilBaseline);
             }
           }
-        } else {
+        } else if (!faces || faces.length === 0) {
           // No face — reset pupil smoothing so next detection starts fresh
           smoothedPupilSize = null;
           pupilBaseline     = null;

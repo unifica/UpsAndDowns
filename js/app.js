@@ -40,11 +40,6 @@ function setGaze(direction) {
   if (!wordUp || !wordDown) return;
   wordUp.classList.toggle('edge-word--active', direction === 'up');
   wordDown.classList.toggle('edge-word--active', direction === 'down');
-  // Technique 1: apply body class so the luminance overlay and gradient
-  // changes take effect (CSS handles the visual transition).
-  document.body.classList.remove('gaze-up', 'gaze-down');
-  if (direction === 'up') document.body.classList.add('gaze-up');
-  else if (direction === 'down') document.body.classList.add('gaze-down');
 }
 
 function updateDebugBars(gazeRatio) {
@@ -96,10 +91,10 @@ function stopCamera() {
 
 function setPreviewVisible(visible) {
   previewVisible = visible;
-  // Use inline style so hiding is guaranteed regardless of CSS specificity or
-  // browser-specific video compositor behaviour (e.g. iOS Safari can render the
-  // <video> element on a separate layer that ignores display:none on a parent).
-  cameraSection.style.display = visible ? '' : 'none';
+  // Use a CSS class that moves the section off-screen rather than display:none,
+  // so the <video> element continues to receive frames and MediaPipe tracking
+  // is unaffected even when the preview is hidden.
+  cameraSection.classList.toggle('preview-hidden', !visible);
   togglePreviewBtn.textContent = visible ? 'Hide Preview' : 'Show Preview';
 }
 

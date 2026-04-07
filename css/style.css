@@ -26,7 +26,7 @@ body {
   background: linear-gradient(
     to bottom,
     #000000 0%,
-    #030306 18%,
+    #020204 18%,
     var(--color-bg) 45%,
     #0e0e1c 72%,
     #161626 100%
@@ -39,7 +39,6 @@ body {
   align-items: center;
   justify-content: center;
   height: 100vh;
-  transition: filter 0.55s ease;
 }
 
 #app {
@@ -145,11 +144,19 @@ body {
   cursor: default;
 }
 
-/* Hidden camera preview — visibility is toggled via inline style in app.js
-   (style.display = 'none') so that the hide is guaranteed even on browsers
-   that render <video> on a separate compositor layer.  Tracking continues
-   unaffected because MediaPipe reads from the HTMLVideoElement's srcObject,
-   not from the rendered display. */
+/* Hidden camera preview — the section is hidden by moving off-screen rather
+   than display:none, so the <video> element continues to receive frames and
+   MediaPipe tracking is unaffected. */
+#camera-section.preview-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+  padding: 0;
+}
 
 /* Pupil size readout */
 .pupil-readout {
@@ -180,43 +187,16 @@ body {
  * Pupil-dilation techniques — overlays and ambient-light effects
  * -------------------------------------------------------------------------- */
 
-/* Technique 1: Full-screen luminance overlay
-   – Sits above the main app content (z-index 6) but below the edge words
-     (z-index 10) so the UP / DOWN labels are always legible.
-   – When gaze-up: near-black radial-gradient overlay darkens the entire visual
-     scene, reducing total retinal illuminance and triggering pupil dilation via
-     the pupillary light reflex.  The gradient radiates outward from the UP
-     word's corner so the fixation target stays visible while the periphery
-     (which also contributes to the light reflex) is maximally darkened.
-   – When gaze-down: white spotlight overlay brightens the scene, driving
-     pupil constriction. */
+/* Technique 1: Full-screen luminance overlay — DISABLED
+   The flash and colour-change effects are removed to avoid giving away
+   the tracking mechanism.  The overlay element is kept in the DOM but
+   permanently invisible. */
 #gaze-overlay {
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 6;
   opacity: 0;
-  transition: opacity 0.55s ease, background 0.55s ease;
-}
-
-/* Dark vignette radiating outward from UP word (top-right) */
-body.gaze-up #gaze-overlay {
-  background: radial-gradient(
-    ellipse 80% 60% at 88% 8%,
-    rgba(0, 0, 0, 0.30) 0%,
-    rgba(0, 0, 0, 0.82) 100%
-  );
-  opacity: 1;
-}
-
-/* Bright spotlight radiating outward from DOWN word (bottom-left) */
-body.gaze-down #gaze-overlay {
-  background: radial-gradient(
-    ellipse 80% 60% at 12% 92%,
-    rgba(255, 255, 255, 0.78) 0%,
-    rgba(255, 255, 255, 0.08) 100%
-  );
-  opacity: 1;
 }
 
 /* Technique 4 (luminance flash) removed */
@@ -248,15 +228,15 @@ body.gaze-down #gaze-overlay {
 /* Noise canvas overlay — positioned behind the text but inside the word block */
 .up-noise {
   position: absolute;
-  inset: -40% -50%;
-  width: 200%;
-  height: 180%;
+  inset: -50% -60%;
+  width: 220%;
+  height: 200%;
   pointer-events: none;
   z-index: -1;
-  opacity: 0.18;
+  opacity: 0.30;
 }
 
-/* The UP text span — applies anamorphic stretch, tilt, partial mask, and zoom */
+/* The UP text span — applies anamorphic stretch, tilt, partial mask, flicker and zoom */
 .up-text {
   display: inline-block;
   /* Anamorphic distortion: slight vertical stretch + horizontal compression
@@ -284,19 +264,27 @@ body.gaze-down #gaze-overlay {
     rgba(0, 0, 0, 1) 85%,
     rgba(0, 0, 0, 0.50) 100%
   );
-  /* Subtle zoom animation — nearly imperceptible continuous approach toward user */
-  animation: up-zoom 6s ease-in-out infinite;
+  /* Flicker + zoom animation — makes text harder to read (Issue 2) */
+  animation: up-flicker 4s ease-in-out infinite;
 }
 
-/* Subtle zoom: scales from 1.0 to 1.03 and back — just enough to feel like the
-   word is slowly drifting closer without being consciously noticed */
-@keyframes up-zoom {
-  0%, 100% {
-    transform: scaleX(0.92) scaleY(1.10) rotate(-1.8deg) scale(1.0);
-  }
-  50% {
-    transform: scaleX(0.92) scaleY(1.10) rotate(-1.8deg) scale(1.03);
-  }
+/* Combined flicker and zoom: opacity pulses between 0.6 and 1.0 while the word
+   scales subtly — the flicker makes it harder to read, increasing cognitive
+   load and triggering arousal-driven pupil dilation */
+@keyframes up-flicker {
+  0%   { opacity: 0.85; transform: scaleX(0.92) scaleY(1.10) rotate(-1.8deg) scale(1.0); }
+  8%   { opacity: 0.60; }
+  12%  { opacity: 0.90; }
+  25%  { opacity: 0.70; transform: scaleX(0.92) scaleY(1.10) rotate(-1.8deg) scale(1.01); }
+  35%  { opacity: 0.95; }
+  42%  { opacity: 0.62; }
+  50%  { opacity: 0.88; transform: scaleX(0.92) scaleY(1.10) rotate(-1.8deg) scale(1.03); }
+  58%  { opacity: 0.65; }
+  65%  { opacity: 0.92; }
+  75%  { opacity: 0.70; transform: scaleX(0.92) scaleY(1.10) rotate(-1.8deg) scale(1.01); }
+  85%  { opacity: 0.90; }
+  92%  { opacity: 0.63; }
+  100% { opacity: 0.85; transform: scaleX(0.92) scaleY(1.10) rotate(-1.8deg) scale(1.0); }
 }
 
 /* Debug probability bars (temporary — for debugging only) */
@@ -329,11 +317,27 @@ body.gaze-down #gaze-overlay {
   background: #63e6ff;
 }
 
+.edge-word--bottom .debug-bar__label {
+  color: #555;
+}
+
+.edge-word--bottom .debug-bar__track {
+  background: rgba(0, 0, 0, 0.15);
+}
+
 .debug-bar__label {
   color: var(--color-text-muted);
   min-width: 2.5rem;
   text-align: right;
 }
+
+/* Technique 4 (non-animated pupil manipulation):
+   – UP word sits on a very dark area (near-black top of page) with low-contrast
+     dark grey text, blur, and visual noise.  The dark surround reduces retinal
+     illuminance and encourages pupil dilation.  The cognitive effort to read
+     the noisy, flickering, distorted text further drives sympathetic arousal.
+   – DOWN word is crisp black text in a bright white box.  The high-luminance
+     surround drives the pupillary light reflex toward constriction. */
 
 .edge-word--top {
   top: 0.2em;
@@ -341,65 +345,25 @@ body.gaze-down #gaze-overlay {
   align-items: flex-end;
   color: #3a3a3a;
   filter: blur(1.5px);
-}
-
-.edge-word--top.edge-word--active {
-  filter: none;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
 }
 
 .edge-word--bottom {
   bottom: 0.2em;
   left: 0.2em;
+  /* Crisp black text in a bright white box (Issue 7) */
+  background: #ffffff;
+  color: #000000;
+  font-family: system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 900;
+  padding: 0.15em 0.5em;
+  border-radius: 6px;
+  /* Remove any blur / noise — keep it maximally crisp */
+  filter: none;
+  text-shadow: none;
+  /* The bright white box drives pupillary constriction via the light reflex */
 }
 
-@keyframes word-glow {
-  0%, 100% {
-    text-shadow: 0 0 20px var(--color-primary), 0 0 40px var(--color-primary);
-  }
-  50% {
-    text-shadow: 0 0 30px var(--color-primary), 0 0 60px var(--color-primary),
-      0 0 100px var(--color-primary);
-  }
-}
-
-/* Technique 3: Color temperature — warm amber for UP word
-   Warm / long-wavelength light is processed via the ipRGC melanopsin pathway
-   differently from cool blue light and is associated with higher arousal,
-   which itself correlates with pupil dilation. */
-@keyframes word-glow-warm {
-  0%, 100% {
-    text-shadow: 0 0 20px #ff9933, 0 0 40px #ff7700;
-  }
-  50% {
-    text-shadow: 0 0 30px #ffcc44, 0 0 60px #ff9900, 0 0 100px #ff6600;
-  }
-}
-
-/* Technique 3: Color temperature — cool blue for DOWN word
-   Short-wavelength (blue) light stimulates the melanopsin-driven pupil
-   constriction response more strongly than long-wavelength light, so the
-   DOWN environment appears photically brighter and drives constriction. */
-@keyframes word-glow-cool {
-  0%, 100% {
-    text-shadow: 0 0 20px #44aaff, 0 0 40px #0077cc;
-  }
-  50% {
-    text-shadow: 0 0 30px #88ccff, 0 0 60px #33aaff, 0 0 100px #0055aa;
-  }
-}
-
-.edge-word--active {
-  color: #fff;
-  animation: word-glow 1.2s ease-in-out infinite;
-}
-
-/* Per-word color-temperature overrides (higher specificity wins) */
-.edge-word--top.edge-word--active {
-  color: #ffcc77;
-  animation: word-glow-warm 1.2s ease-in-out infinite;
-}
-
-.edge-word--bottom.edge-word--active {
-  color: #aaddff;
-  animation: word-glow-cool 1.2s ease-in-out infinite;
-}
+/* Active states removed — no flash, glow, or colour change when looking at
+   either word (Issue 3).  The .edge-word--active class is still toggled by JS
+   for potential future use but deliberately has no visual effect. */
