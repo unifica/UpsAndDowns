@@ -141,3 +141,18 @@ body {
 .edge-word--bottom {
   bottom: 0.2em;
 }
+
+@keyframes word-glow {
+  0%, 100% {
+    text-shadow: 0 0 20px var(--color-primary), 0 0 40px var(--color-primary);
+  }
+  50% {
+    text-shadow: 0 0 30px var(--color-primary), 0 0 60px var(--color-primary),
+      0 0 100px var(--color-primary);
+  }
+}
+
+.edge-word--active {
+  color: #fff;
+  animation: word-glow 1.2s ease-in-out infinite;
+}
