@@ -57,9 +57,14 @@ const GAZE_THRESHOLD_DOWN = 0.57; // ratio above this → looking down
 //   constricted (iris < baseline) → scene got brighter → user is looking toward DOWN
 let pupilBaseline = null;
 const PUPIL_BASELINE_SMOOTHING = 0.008; // very slow EMA (~125 frames to 63 %)
-const PUPIL_SIGNAL_WEIGHT      = 0.40;  // max contribution to gaze ratio (±) — pupil is the primary predictor
+const PUPIL_SIGNAL_WEIGHT      = 0.55;  // max contribution to gaze ratio (±) — pupil dilation is the dominant predictor
 const PUPIL_SIGNAL_CLAMP       = 0.20;  // relative deviation clamped to ±20 %
 const PUPIL_BASELINE_MIN       = 0.001; // minimum plausible baseline value (sanity guard)
+
+// Scaling factor applied to the head-pitch + iris-position combined deviation
+// before it is added to the gaze ratio.  Keeping this small (< 0.5) ensures
+// the pupil-dilation signal (PUPIL_SIGNAL_WEIGHT) remains the dominant driver.
+const GAZE_COMPONENT_SCALE = 0.30;
 
 // Number of consecutive frames a direction must persist before it is reported.
 // This prevents rapid flickering when the gaze ratio hovers near a threshold.
@@ -134,9 +139,11 @@ function computeHeadPitchRatio(kp) {
 }
 
 // Returns a combined gaze ratio in [0, 1] where 0 = looking up and 1 = looking down.
-// Combines vertical iris position (60 %) and head-pitch ratio (40 %).
-// This signal is used as a secondary (supporting) input — the primary predictor
-// is the pupil-size deviation from baseline (see PUPIL_SIGNAL_WEIGHT).
+// Combines head-pitch ratio (80 %) and vertical iris position (20 %).
+// Head position is heavily weighted because even slight upward/downward head
+// movement is a strong signal for the UP/DOWN reading intent.  The raw iris
+// position within the eye socket carries much less discriminative weight here
+// since pupil dilation (see PUPIL_SIGNAL_WEIGHT) is the dominant predictor.
 // The calibration offset normalises the combined metric so each user's
 // neutral looking-straight-ahead position maps to 0.5.
 // Returns null if iris data is unavailable.
@@ -147,7 +154,7 @@ function computeGazeRatio(kp) {
   const pitch = computeHeadPitchRatio(kp);
   if (pitch === null) return vertical;
 
-  return vertical * 0.6 + pitch * 0.4;
+  return vertical * 0.2 + pitch * 0.8;
 }
 
 // ---------------------------------------------------------------------------
@@ -536,14 +543,17 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
               }
             } else {
               // Apply calibration offset so that the user's neutral gaze maps to 0.5.
-              // The pupil-size deviation is the PRIMARY predictor (PUPIL_SIGNAL_WEIGHT = 0.40):
+              // The pupil-size deviation is the DOMINANT predictor (PUPIL_SIGNAL_WEIGHT = 0.55):
               //   dilation (dark scene / looking UP)   → large negative contribution → ratio toward 0
               //   constriction (bright scene / looking DOWN) → large positive contribution → ratio toward 1
-              // The iris-position / head-pitch signal is attenuated to 40 % of its raw
-              // deviation so that the pupil signal clearly dominates.
+              // The head-pitch + iris-position signal (computeGazeRatio) is attenuated to 30 % of its
+              // raw deviation so that the pupil signal clearly dominates.  Within that signal
+              // head pitch carries 80 % of the weight, reinforcing the rule:
+              //   head up + larger pupil  → high confidence UP
+              //   head down + smaller pupil → high confidence DOWN
               const pupilContrib = computePupilGazeContribution(smoothedPupilSize, pupilBaseline);
-              // Scale gaze deviation to 40 % so pupil is the heavy hitter
-              const gazeComponent = 0.5 + (raw - calibrationOffset - 0.5) * 0.4;
+              // Scale gaze deviation to 30 % so pupil + head-pitch are the heavy hitters
+              const gazeComponent = 0.5 + (raw - calibrationOffset - 0.5) * GAZE_COMPONENT_SCALE;
               const adjusted = gazeComponent + pupilContrib;
               // Exponential moving average smoothing
               smoothedGazeRatio =
