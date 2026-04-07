@@ -34,10 +34,9 @@ async function startCamera() {
 
 function stopCamera() {
   const stream = video.srcObject;
-  if (stream) {
-    stream.getTracks().forEach((track) => track.stop());
-    video.srcObject = null;
-  }
+  if (!stream) return;
+  stream.getTracks().forEach((track) => track.stop());
+  video.srcObject = null;
 }
 
 function setStatus(message) {
