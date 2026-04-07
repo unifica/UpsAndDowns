@@ -4,15 +4,18 @@ An interactive digital magic trick that uses real-time AI to detect where you ar
 
 ## What is it?
 
-Ups & Downs is a browser-based Progressive Web App (PWA) that uses your device's camera and real-time AI to track your eye movements and pupil size. The app analyses where you are looking — up or down — and, crucially, **actively engineers changes in your pupil diameter** by manipulating the visual scene around you. Once the AI detects a reliable pupil-size difference it can "reveal" your chosen word, creating the illusion of mind-reading. The effect exploits well-documented physiological and psychological reflexes; the "magic" is really controlled neuroscience.  All processing happens locally in the browser; nothing is uploaded anywhere.
+Ups & Downs is a browser-based Progressive Web App (PWA) that uses your device's camera and real-time AI to track your eye movements and pupil size. The app analyses where you are looking — up or down — by combining head-pitch estimation, vertical iris position, and real-time **pupil-dilation measurement**. The visual scene is engineered to passively bias pupil size in opposite directions: the top of the screen is kept deliberately dark and visually complex (encouraging dilation), while the bottom shows crisp bright text (driving constriction via the **pupillary light reflex**). When the AI detects a reliable difference in iris size between the two directions, it can infer your chosen word. The effect exploits well-documented physiological and psychological reflexes; the "magic" is really controlled neuroscience.  All processing happens locally in the browser; nothing is uploaded anywhere.
 
 ## Features
 
-- **Gaze direction detection** — determines whether you are looking up or down and highlights the corresponding word on screen.
-- **Pupil-size tracking** — measures and displays relative pupil diameter in real time, enabling subtle physiological cues to be read during the trick.
+- **Gaze direction detection** — combines head-pitch estimation, vertical iris position, and pupil-dilation changes to determine whether you are looking up or down; probability bars beside each word show the real-time confidence for each direction.
+- **Pupil-size tracking** — measures and displays relative pupil diameter (normalised iris radius) in real time, enabling subtle physiological cues to be read during the trick.
+- **Blink detection** — uses the Eye Aspect Ratio (EAR) to detect and skip frames during blinks, preventing eyelid closure from being misread as a downward gaze shift.
+- **Calibration** — collects a short neutral-gaze baseline at startup so that each user's natural resting position maps to the midpoint of the tracking scale.
 - **Real-time eye tracking** — uses MediaPipe FaceMesh (478 facial landmarks, including iris tracking) to detect and follow your eyes at video-frame rate.
 - **AI-powered** — runs TensorFlow.js in the browser; no server-side processing required.
-- **Visual overlay** — renders glowing eye-contour ellipses and iris-centre dots on a transparent canvas laid over the live camera feed.
+- **Visual overlay** — renders glowing ellipses over eye contours, irises, nose, and mouth; a vertical gaze-ratio indicator bar and a live pupil-size label are drawn on the canvas.
+- **Randomised top word** — the top word is replaced with a randomly selected complex word on each page load to increase cognitive effort and arousal.
 - **Progressive Web App** — installable on desktop and mobile; works offline after the first load thanks to a service worker.
 - **Privacy-first** — the camera feed is processed locally and never uploaded anywhere.
 
@@ -47,9 +50,10 @@ Because the app loads models from a CDN and registers a service worker, it needs
 
 1. Open the app and click **Start**.
 2. Grant camera permission when prompted.
-3. The app loads the AI model (a one-time download cached by the service worker) and begins tracking.
-4. The overlay highlights your eye contours and irises in real time.
-5. Click **Stop** to end the session and release the camera.
+3. The app loads the AI model (a one-time download cached by the service worker).
+4. **Calibration phase**: look straight ahead for a few seconds while the status bar reads "Calibrating…". The app records your neutral gaze position before tracking begins.
+5. The overlay draws glowing contours over your eyes, nose, and mouth; a gaze-ratio indicator bar on the right edge shows the current up/down confidence, and a pupil-size label is shown at the bottom left.
+6. Use **Hide Preview** to collapse the camera feed (tracking continues unaffected) or **Stop** to end the session and release the camera.
 
 ## Psychological background
 
@@ -61,7 +65,7 @@ The pupil's most powerful driver is ambient luminance.  Bright light causes the 
 
 ### 2 — Intrinsically photosensitive retinal ganglion cells (ipRGCs) and the melanopsin pathway
 
-Beyond the classical rod/cone pathway, a small subset of retinal ganglion cells (~1 % in humans) contain the photopigment **melanopsin** and are intrinsically sensitive to light, peaking around 480 nm (blue–cyan) [3].  These ipRGCs project directly to the olivary pretectal nucleus — the gateway of the PLR — and to the suprachiasmatic nucleus (circadian clock) [4].  Because ipRGC sensitivity peaks in the blue portion of the spectrum, **short-wavelength blue light drives stronger and more sustained pupil constriction** than equivalent-energy long-wavelength red/amber light [5].  Ups & Downs exploits this by colouring DOWN in cool blue and UP in warm amber.
+Beyond the classical rod/cone pathway, a small subset of retinal ganglion cells (~1 % in humans) contain the photopigment **melanopsin** and are intrinsically sensitive to light, peaking around 480 nm (blue–cyan) [3].  These ipRGCs project directly to the olivary pretectal nucleus — the gateway of the PLR — and to the suprachiasmatic nucleus (circadian clock) [4].  Because ipRGC sensitivity peaks in the blue portion of the spectrum, **short-wavelength blue light drives stronger and more sustained pupil constriction** than equivalent-energy long-wavelength red/amber light [5].
 
 ### 3 — Cognitive and emotional pupil dilation (psychosensory reflex)
 
@@ -73,26 +77,32 @@ Pupils are not controlled solely by light.  They also dilate in response to:
 
 While Ups & Downs primarily manipulates the PLR through luminance control, these cognitive effects add a secondary signal: concentrating on the chosen word and anticipating the reveal naturally introduces mild arousal-driven dilation, reinforcing the intended measurement direction.
 
-### 4 — Orienting reflex and the dark-flash technique
+### 4 — Orienting reflex
 
-When any novel or salient event occurs — including a sudden darkening of the visual field — the **orienting response** (OR) described by Sokolov produces an immediate, reflexive pupil dilation [12].  The app uses a brief luminance flash on each gaze-direction transition to exploit this reflex, rapidly shifting pupil size before the sustained overlay takes over.
+When any novel or salient event occurs — including a sudden darkening of the visual field — the **orienting response** (OR) described by Sokolov produces an immediate, reflexive pupil dilation [12].  Earlier versions of the app used a brief luminance flash on each gaze-direction transition to exploit this reflex; that animated technique has since been replaced by a static high-contrast scene design (see Technique 4 in the table above).
 
 ### 5 — Why the effect is reliable enough to detect with a webcam
 
-At normal reading distances, MediaPipe FaceMesh resolves the iris diameter to roughly ±1–2 pixels on a typical webcam frame.  Even a modest luminance change (~50 cd/m² delta on a standard monitor) produces a pupil-diameter change of ~0.5–1.0 mm [2], which corresponds to several pixels in the iris-landmark projection and is well above the noise floor of the tracker.  The four combined techniques (luminance overlay, background gradient, colour temperature, and transition flash) together produce a larger and faster pupil-size difference than any single technique alone, making detection robust enough to work under everyday webcam conditions.
+At normal reading distances, MediaPipe FaceMesh resolves the iris diameter to roughly ±1–2 pixels on a typical webcam frame.  Even a modest luminance change (~50 cd/m² delta on a standard monitor) produces a pupil-diameter change of ~0.5–1.0 mm [2], which corresponds to several pixels in the iris-landmark projection and is well above the noise floor of the tracker.  The three combined techniques (background luminance gradient, static contrast presentation, and cognitive-load visual effects) together produce a larger and faster pupil-size difference than any single technique alone, making detection robust enough to work under everyday webcam conditions.
 
 ## How the trick works — pupil-dilation techniques
 
-The app actively manipulates the visual scene to **cause** the pupil to dilate when the user looks at UP and to constrict when they look at DOWN.  Once the AI detects a reliable difference in iris size, it can reveal the chosen word — the "mind reading" is really controlled physiology.
+The app engineers the visual scene to **passively bias** the pupil in opposite directions for each word.  When the AI detects a reliable difference in iris size it can infer which word was chosen — the "mind reading" is really controlled physiology.
 
-Four complementary techniques are applied simultaneously whenever the gaze direction is determined:
+Three techniques are currently active:
 
 | # | Technique | Mechanism |
 |---|---|---|
-| 1 | **Screen luminance overlay** | A radial-gradient overlay dims the entire scene to near-black (UP) or floods it with a white spotlight (DOWN), directly driving the **pupillary light reflex**. |
-| 2 | **Background luminance gradient** | The page background is a static top-to-bottom gradient — near-black at the top where UP lives, progressively lighter toward the bottom where DOWN lives.  This creates a passive, always-on luminance bias with no gaze signal required. |
-| 3 | **Color temperature of the active word** | UP glows warm amber (#ffcc77 + orange halos); DOWN glows cool blue (#aaddff + blue halos).  Long-wavelength warm light is processed differently by the ipRGC melanopsin pathway, contributing to a relatively lower constriction drive compared with short-wavelength blue light. |
-| 4 | **Luminance flash on transition** | When the gaze direction changes, a brief dark burst (UP) or bright burst (DOWN) is animated via the Web Animations API, rapidly driving the light reflex before the steady-state overlay settles. |
+| 2 | **Background luminance gradient** | The page background is a static top-to-bottom gradient — near-black at the top where the top word lives, progressively lighter toward the bottom where DOWN lives.  This creates a passive, always-on luminance bias with no gaze signal required. |
+| 4 | **Static contrast presentation** | The top word is rendered in small, dark-grey, blurred text against a near-black background, keeping local luminance low and encouraging pupil dilation.  DOWN is presented in large, crisp black text inside a bright white box, driving pupillary constriction via the **pupillary light reflex**. |
+| 5 | **Cognitive-load visual effects on the top word** | The top word is replaced by a randomly chosen complex word on each page load, then distorted with an anamorphic transform, partially masked, and overlaid with animated noise and slow-refreshing scratch lines.  The increased processing effort required to read it raises sympathetic arousal and drives the task-evoked pupillary response (TEPR). |
+
+Two techniques from an earlier version are no longer active:
+
+| # | Technique | Status |
+|---|---|---|
+| 1 | **Screen luminance overlay** | Disabled — the overlay element remains in the DOM but is permanently hidden (`opacity: 0`). |
+| 3 | **Colour temperature / active-word glow** | Removed — no colour, glow, or flash is applied to either word when a gaze direction is detected. |
 
 ## References
 
