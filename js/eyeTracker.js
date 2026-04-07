@@ -320,7 +320,7 @@ function renderOverlay(ctx, faces, scale, offsetX, offsetY, gazeRatio) {
 // Public tracking loop
 // ---------------------------------------------------------------------------
 
-export function startTracking(video, canvas, onGaze) {
+export function startTracking(video, canvas, onGaze, onGazeRatio) {
   const ctx = canvas.getContext('2d');
   // Reset smoothing and stability state for each new session
   smoothedGazeRatio = 0.5;
@@ -390,6 +390,7 @@ export function startTracking(video, canvas, onGaze) {
         }
 
         renderOverlay(ctx, faces, scale, offsetX, offsetY, gazeRatio);
+        if (onGazeRatio) onGazeRatio(gazeRatio);
       } catch (err) {
         console.warn('Face detection error:', err);
       }
