@@ -1,3 +1,5 @@
+import { loadModel, startTracking, stopTracking } from './eyeTracker.js';
+
 // Register service worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -15,21 +17,28 @@ if ('serviceWorker' in navigator) {
 // DOM references
 const startBtn = document.getElementById('start-btn');
 const statusEl = document.getElementById('status');
-const video = document.getElementById('video');
+const video    = document.getElementById('video');
+const canvas   = document.getElementById('overlay');
 
 let running = false;
 
+function setStatus(message) {
+  statusEl.textContent = message;
+}
+
 async function startCamera() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user' },
-      audio: false,
-    });
-    video.srcObject = stream;
-  } catch (err) {
-    setStatus('Camera access denied');
-    console.error('Camera error:', err);
-  }
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: 'user' },
+    audio: false,
+  });
+  video.srcObject = stream;
+  // Wait until the first frame is available so videoWidth/videoHeight are set
+  await new Promise((resolve) => {
+    video.addEventListener('loadeddata', resolve, { once: true });
+  });
+  // Initialise canvas pixel dimensions to match its displayed size
+  canvas.width  = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
 }
 
 function stopCamera() {
@@ -39,20 +48,37 @@ function stopCamera() {
   video.srcObject = null;
 }
 
-function setStatus(message) {
-  statusEl.textContent = message;
-}
+// Begin loading the AI model as soon as the page is ready so it is warm
+// by the time the user clicks Start.
+loadModel(setStatus).catch((err) => {
+  console.error('Model load error:', err);
+  setStatus('AI model failed to load');
+  startBtn.disabled = true;
+  startBtn.title = 'AI model could not be loaded';
+});
 
-startBtn.addEventListener('click', () => {
+startBtn.addEventListener('click', async () => {
   if (!running) {
     running = true;
-    startBtn.textContent = 'Stop';
-    setStatus('Tracking…');
-    startCamera();
+    startBtn.disabled = true;
+    startBtn.textContent = 'Starting…';
+    try {
+      await startCamera();
+      startTracking(video, canvas);
+      setStatus('Tracking…');
+      startBtn.textContent = 'Stop';
+    } catch (err) {
+      console.error('Camera error:', err);
+      setStatus('Camera access denied');
+      running = false;
+      startBtn.textContent = 'Start';
+    }
+    startBtn.disabled = false;
   } else {
     running = false;
+    stopTracking(canvas);
+    stopCamera();
     startBtn.textContent = 'Start';
     setStatus('Ready');
-    stopCamera();
   }
 });

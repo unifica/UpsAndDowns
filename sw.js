@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ups-and-downs-v1';
+const CACHE_NAME = 'ups-and-downs-v2';
 
 const PRECACHE_ASSETS = [
   '/',
@@ -6,6 +6,7 @@ const PRECACHE_ASSETS = [
   '/manifest.json',
   '/css/style.css',
   '/js/app.js',
+  '/js/eyeTracker.js',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
 ];
