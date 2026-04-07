@@ -11,8 +11,9 @@ const RIGHT_EYE_INDICES = [
 const LEFT_IRIS_INDICES  = [468, 469, 470, 471, 472];
 const RIGHT_IRIS_INDICES = [473, 474, 475, 476, 477];
 
-const LEFT_EYE_COLOR  = '#6c63ff'; // brand purple
-const RIGHT_EYE_COLOR = '#63e6ff'; // cyan complement
+const LEFT_EYE_COLOR     = '#6c63ff'; // brand purple
+const RIGHT_EYE_COLOR    = '#63e6ff'; // cyan complement
+const LANDMARK_DOT_COLOR = '#00ff00'; // bright green for all facial feature points
 
 let detector = null;
 let animFrameId = null;
@@ -90,12 +91,21 @@ function drawGlowDot(ctx, x, y, color, radius = 3) {
 // Overlay rendering
 // ---------------------------------------------------------------------------
 
+function drawLandmarkDots(ctx, kp, scaleX, scaleY) {
+  for (const point of kp) {
+    drawGlowDot(ctx, point.x * scaleX, point.y * scaleY, LANDMARK_DOT_COLOR, 2);
+  }
+}
+
 function renderOverlay(ctx, faces, scaleX, scaleY) {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   if (!faces || faces.length === 0) return;
 
   for (const face of faces) {
     const kp = face.keypoints;
+
+    // --- Bright green dots for all detected facial feature positions ---
+    drawLandmarkDots(ctx, kp, scaleX, scaleY);
 
     // --- Eye contour ellipses ---
     for (const [indices, color] of [
