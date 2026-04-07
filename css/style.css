@@ -145,12 +145,11 @@ body {
   cursor: default;
 }
 
-/* Hidden camera preview — element is removed from layout but video stream
-   and tracking continue unaffected (MediaPipe reads from the HTMLVideoElement's
-   srcObject, not from the rendered display). */
-#camera-section.preview-hidden {
-  display: none;
-}
+/* Hidden camera preview — visibility is toggled via inline style in app.js
+   (style.display = 'none') so that the hide is guaranteed even on browsers
+   that render <video> on a separate compositor layer.  Tracking continues
+   unaffected because MediaPipe reads from the HTMLVideoElement's srcObject,
+   not from the rendered display. */
 
 /* Pupil size readout */
 .pupil-readout {

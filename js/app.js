@@ -96,7 +96,10 @@ function stopCamera() {
 
 function setPreviewVisible(visible) {
   previewVisible = visible;
-  cameraSection.classList.toggle('preview-hidden', !visible);
+  // Use inline style so hiding is guaranteed regardless of CSS specificity or
+  // browser-specific video compositor behaviour (e.g. iOS Safari can render the
+  // <video> element on a separate layer that ignores display:none on a parent).
+  cameraSection.style.display = visible ? '' : 'none';
   togglePreviewBtn.textContent = visible ? 'Hide Preview' : 'Show Preview';
 }
 

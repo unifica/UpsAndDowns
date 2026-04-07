@@ -57,7 +57,7 @@ const GAZE_THRESHOLD_DOWN = 0.57; // ratio above this → looking down
 //   constricted (iris < baseline) → scene got brighter → user is looking toward DOWN
 let pupilBaseline = null;
 const PUPIL_BASELINE_SMOOTHING = 0.008; // very slow EMA (~125 frames to 63 %)
-const PUPIL_SIGNAL_WEIGHT      = 0.18;  // max contribution to gaze ratio (±)
+const PUPIL_SIGNAL_WEIGHT      = 0.40;  // max contribution to gaze ratio (±) — pupil is the primary predictor
 const PUPIL_SIGNAL_CLAMP       = 0.20;  // relative deviation clamped to ±20 %
 const PUPIL_BASELINE_MIN       = 0.001; // minimum plausible baseline value (sanity guard)
 
@@ -134,12 +134,9 @@ function computeHeadPitchRatio(kp) {
 }
 
 // Returns a combined gaze ratio in [0, 1] where 0 = looking up and 1 = looking down.
-// Primary signal (70 %): vertical iris position within the eye socket — this
-// works reliably when the user's head is level because no horizontal component
-// is mixed in to dilute a straight-up or straight-down gaze.
-// Secondary signal (30 %): head-pitch ratio derived from face proportions — this
-// captures the natural, slight head nod that often accompanies looking up/down
-// and also extends the range when the user does tilt their head.
+// Combines vertical iris position (60 %) and head-pitch ratio (40 %).
+// This signal is used as a secondary (supporting) input — the primary predictor
+// is the pupil-size deviation from baseline (see PUPIL_SIGNAL_WEIGHT).
 // The calibration offset normalises the combined metric so each user's
 // neutral looking-straight-ahead position maps to 0.5.
 // Returns null if iris data is unavailable.
@@ -150,7 +147,7 @@ function computeGazeRatio(kp) {
   const pitch = computeHeadPitchRatio(kp);
   if (pitch === null) return vertical;
 
-  return vertical * 0.7 + pitch * 0.3;
+  return vertical * 0.6 + pitch * 0.4;
 }
 
 // ---------------------------------------------------------------------------
@@ -499,7 +496,11 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
       // Keep canvas pixel dimensions in sync with its CSS display size
       const dw = canvas.clientWidth;
       const dh = canvas.clientHeight;
-      if (canvas.width !== dw || canvas.height !== dh) {
+      // Guard: do not collapse the canvas to 0×0 when the section is hidden
+      // (display:none makes clientWidth/clientHeight return 0).  Preserving the
+      // last known dimensions keeps the tracking loop healthy and avoids needing
+      // a full re-initialisation when the preview is revealed again.
+      if (dw > 0 && dh > 0 && (canvas.width !== dw || canvas.height !== dh)) {
         canvas.width  = dw;
         canvas.height = dh;
       }
@@ -535,11 +536,15 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
               }
             } else {
               // Apply calibration offset so that the user's neutral gaze maps to 0.5.
-              // Add the pupil-dilation contribution from the previous frame's
-              // smoothed iris size: dilation (dark scene) nudges the ratio toward
-              // 0 (up), constriction (bright scene) nudges it toward 1 (down).
+              // The pupil-size deviation is the PRIMARY predictor (PUPIL_SIGNAL_WEIGHT = 0.40):
+              //   dilation (dark scene / looking UP)   → large negative contribution → ratio toward 0
+              //   constriction (bright scene / looking DOWN) → large positive contribution → ratio toward 1
+              // The iris-position / head-pitch signal is attenuated to 40 % of its raw
+              // deviation so that the pupil signal clearly dominates.
               const pupilContrib = computePupilGazeContribution(smoothedPupilSize, pupilBaseline);
-              const adjusted = raw - calibrationOffset + pupilContrib;
+              // Scale gaze deviation to 40 % so pupil is the heavy hitter
+              const gazeComponent = 0.5 + (raw - calibrationOffset - 0.5) * 0.4;
+              const adjusted = gazeComponent + pupilContrib;
               // Exponential moving average smoothing
               smoothedGazeRatio =
                 smoothedGazeRatio + GAZE_SMOOTHING * (adjusted - smoothedGazeRatio);
