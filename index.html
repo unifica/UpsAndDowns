@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A digital magic trick using AI and facial / eye tracking" />
+    <meta name="theme-color" content="#6c63ff" />
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+    <title>Ups and Downs</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="app-header">
+        <h1>Ups &amp; Downs</h1>
+        <p class="tagline">A digital magic trick</p>
+      </header>
+
+      <main class="app-main">
+        <section id="camera-section" class="card">
+          <video id="video" autoplay playsinline muted></video>
+          <canvas id="overlay"></canvas>
+        </section>
+
+        <section id="controls" class="card">
+          <button id="start-btn" class="btn btn-primary">Start</button>
+          <p id="status" class="status-text">Ready</p>
+        </section>
+      </main>
+    </div>
+
+    <script src="js/app.js" type="module"></script>
+  </body>
+</html>
