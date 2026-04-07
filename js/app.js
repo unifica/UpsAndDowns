@@ -15,12 +15,16 @@ if ('serviceWorker' in navigator) {
 }
 
 // DOM references
-const startBtn = document.getElementById('start-btn');
-const statusEl = document.getElementById('status');
-const video    = document.getElementById('video');
-const canvas   = document.getElementById('overlay');
-const wordUp   = document.querySelector('.edge-word--top');
-const wordDown = document.querySelector('.edge-word--bottom');
+const startBtn        = document.getElementById('start-btn');
+const statusEl        = document.getElementById('status');
+const video           = document.getElementById('video');
+const canvas          = document.getElementById('overlay');
+const wordUp          = document.querySelector('.edge-word--top');
+const wordDown        = document.querySelector('.edge-word--bottom');
+const debugUpFill     = document.getElementById('debug-bar-up-fill');
+const debugUpLabel    = document.getElementById('debug-bar-up-label');
+const debugDownFill   = document.getElementById('debug-bar-down-fill');
+const debugDownLabel  = document.getElementById('debug-bar-down-label');
 
 let running = false;
 
@@ -32,6 +36,22 @@ function setGaze(direction) {
   if (!wordUp || !wordDown) return;
   wordUp.classList.toggle('edge-word--active', direction === 'up');
   wordDown.classList.toggle('edge-word--active', direction === 'down');
+}
+
+function updateDebugBars(gazeRatio) {
+  if (gazeRatio === null || gazeRatio === undefined) {
+    debugUpFill.style.width    = '0%';
+    debugDownFill.style.width  = '0%';
+    debugUpLabel.textContent   = '—';
+    debugDownLabel.textContent = '—';
+    return;
+  }
+  const upPct   = Math.round((1 - gazeRatio) * 100);
+  const downPct = 100 - upPct;
+  debugUpFill.style.width    = `${upPct}%`;
+  debugDownFill.style.width  = `${downPct}%`;
+  debugUpLabel.textContent   = `${upPct}%`;
+  debugDownLabel.textContent = `${downPct}%`;
 }
 
 async function startCamera() {
@@ -72,7 +92,7 @@ startBtn.addEventListener('click', async () => {
     startBtn.textContent = 'Starting…';
     try {
       await startCamera();
-      startTracking(video, canvas, setGaze);
+      startTracking(video, canvas, setGaze, updateDebugBars);
       setStatus('Tracking…');
       startBtn.textContent = 'Stop';
     } catch (err) {
@@ -86,6 +106,7 @@ startBtn.addEventListener('click', async () => {
     running = false;
     stopTracking(canvas);
     setGaze('neutral');
+    updateDebugBars(null);
     stopCamera();
     startBtn.textContent = 'Start';
     setStatus('Ready');

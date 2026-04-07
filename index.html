@@ -14,8 +14,24 @@
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
-    <div class="edge-word edge-word--top">UP</div>
-    <div class="edge-word edge-word--bottom">DOWN</div>
+    <div class="edge-word edge-word--top">
+      UP
+      <div class="debug-bar">
+        <div class="debug-bar__track">
+          <div class="debug-bar__fill" id="debug-bar-up-fill"></div>
+        </div>
+        <span class="debug-bar__label" id="debug-bar-up-label">—</span>
+      </div>
+    </div>
+    <div class="edge-word edge-word--bottom">
+      DOWN
+      <div class="debug-bar">
+        <div class="debug-bar__track">
+          <div class="debug-bar__fill" id="debug-bar-down-fill"></div>
+        </div>
+        <span class="debug-bar__label" id="debug-bar-down-label">—</span>
+      </div>
+    </div>
     <div id="app">
       <main class="app-main">
         <section id="camera-section" class="card">
