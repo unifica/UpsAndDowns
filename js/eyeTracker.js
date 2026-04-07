@@ -38,9 +38,9 @@ let animFrameId = null;
 
 // Gaze smoothing state (reset each session)
 let smoothedGazeRatio = 0.5;
-const GAZE_SMOOTHING      = 0.15; // EMA factor
-const GAZE_THRESHOLD_UP   = 0.40; // ratio below this → looking up
-const GAZE_THRESHOLD_DOWN = 0.60; // ratio above this → looking down
+const GAZE_SMOOTHING      = 0.20; // EMA factor – slightly higher for quicker head-level response
+const GAZE_THRESHOLD_UP   = 0.43; // ratio below this → looking up
+const GAZE_THRESHOLD_DOWN = 0.57; // ratio above this → looking down
 
 // Number of consecutive frames a direction must persist before it is reported.
 // This prevents rapid flickering when the gaze ratio hovers near a threshold.
@@ -88,50 +88,50 @@ function computeVerticalGazeRatio(kp) {
   return results.reduce((a, b) => a + b, 0) / results.length;
 }
 
-// Returns a ratio in [0, 1] where 0 = iris at left of eye (in image coords,
-// i.e. looking screen-left) and 1 = iris at right of eye (looking screen-right,
-// toward the top-right word in the mirrored display).  Returns null if iris
-// data is unavailable.
-function computeHorizontalGazeRatio(kp) {
+// Returns an estimated head-pitch ratio in [0, 1].
+// 0 = head tilted up (chin raised), 1 = head tilted down (chin toward chest).
+// Uses the 2-D proportion of upper face (eye midpoint → nose tip) versus the
+// total face height (eye midpoint → chin).  When the head tilts forward the
+// forehead faces the camera, foreshortening the lower portion so the
+// eye-to-nose distance grows relative to nose-to-chin.
+// Returns null if required landmarks are missing or face is too small.
+function computeHeadPitchRatio(kp) {
   if (kp.length < 478) return null;
 
-  const results = [];
-  for (const [eyeIndices, irisCenterIdx] of [
-    [LEFT_EYE_INDICES, 468],
-    [RIGHT_EYE_INDICES, 473],
-  ]) {
-    const validEye = eyeIndices.filter((i) => i < kp.length);
-    if (!validEye.length) continue;
+  const eyeMidY  = (kp[468].y + kp[473].y) / 2; // average of iris centers
+  const noseTipY = kp[4].y;                       // apex of the nose
+  const chinY    = kp[152].y;                     // chin center
 
-    const eyePts   = validEye.map((i) => kp[i]);
-    const eyeLeft  = Math.min(...eyePts.map((p) => p.x));
-    const eyeRight = Math.max(...eyePts.map((p) => p.x));
-    const eyeWidth = eyeRight - eyeLeft;
-    if (eyeWidth < 1) continue;
+  // Sanity check: landmarks should be in top-to-bottom image order
+  if (noseTipY <= eyeMidY || chinY <= noseTipY) return null;
 
-    if (irisCenterIdx >= kp.length) continue;
-    const irisCx = kp[irisCenterIdx].x;
-    results.push((irisCx - eyeLeft) / eyeWidth);
-  }
+  const upperH = noseTipY - eyeMidY; // eye-midpoint to nose
+  const totalH = chinY    - eyeMidY; // eye-midpoint to chin
+  if (totalH < 1) return null;
 
-  if (!results.length) return null;
-  return results.reduce((a, b) => a + b, 0) / results.length;
+  // upperH / totalH grows as the head tilts down (forehead faces camera more,
+  // lower face foreshortens) and shrinks as the head tilts up.
+  return upperH / totalH;
 }
 
-// Returns a combined diagonal gaze ratio in [0, 1].
-// Low values (→ 0) indicate gaze toward the top-right corner (UP word).
-// High values (→ 1) indicate gaze toward the bottom-left corner (DOWN word).
+// Returns a combined gaze ratio in [0, 1] where 0 = looking up and 1 = looking down.
+// Primary signal (70 %): vertical iris position within the eye socket — this
+// works reliably when the user's head is level because no horizontal component
+// is mixed in to dilute a straight-up or straight-down gaze.
+// Secondary signal (30 %): head-pitch ratio derived from face proportions — this
+// captures the natural, slight head nod that often accompanies looking up/down
+// and also extends the range when the user does tilt their head.
+// The calibration offset normalises the combined metric so each user's
+// neutral looking-straight-ahead position maps to 0.5.
 // Returns null if iris data is unavailable.
 function computeGazeRatio(kp) {
-  const vertical   = computeVerticalGazeRatio(kp);
-  const horizontal = computeHorizontalGazeRatio(kp);
-  if (vertical === null || horizontal === null) return null;
-  // Combine vertical and horizontal into a single diagonal score.
-  // The horizontal component is inverted so both axes point in the same
-  // direction for each corner:
-  //   Top-right  (UP)   → low vertical  + (1 - high horizontal) = low  + low  → low  score
-  //   Bottom-left (DOWN) → high vertical + (1 - low horizontal)  = high + high → high score
-  return (vertical + (1 - horizontal)) / 2;
+  const vertical = computeVerticalGazeRatio(kp);
+  if (vertical === null) return null;
+
+  const pitch = computeHeadPitchRatio(kp);
+  if (pitch === null) return vertical;
+
+  return vertical * 0.7 + pitch * 0.3;
 }
 
 // ---------------------------------------------------------------------------
@@ -204,8 +204,8 @@ function drawGlowDot(ctx, x, y, color, radius = 3) {
 }
 
 // Draws a compact vertical gaze-ratio indicator bar on the right edge of the
-// canvas.  The moving dot sits at the combined diagonal ratio position
-// (0 = top-right, 1 = bottom-left).  Threshold lines mark the up/down zones.
+// canvas.  The moving dot sits at the combined gaze-ratio position
+// (0 = looking up, 1 = looking down).  Threshold lines mark the up/down zones.
 function drawGazeIndicator(ctx, ratio, canvasWidth, canvasHeight) {
   const barH  = Math.round(canvasHeight * GAZE_INDICATOR_HEIGHT_RATIO);
   const barW  = 6;
