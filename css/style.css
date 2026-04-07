@@ -130,6 +130,28 @@ body {
   opacity: 0.88;
 }
 
+.btn-secondary {
+  background-color: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.07);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Hidden camera preview — element is removed from layout but video stream
+   and tracking continue unaffected (MediaPipe reads from the HTMLVideoElement's
+   srcObject, not from the rendered display). */
+#camera-section.preview-hidden {
+  display: none;
+}
+
 /* Pupil size readout */
 .pupil-readout {
   display: flex;
@@ -198,17 +220,7 @@ body.gaze-down #gaze-overlay {
   opacity: 1;
 }
 
-/* Technique 4: Luminance flash on gaze-direction change
-   A brief burst of darkness (UP) or brightness (DOWN) rapidly drives the
-   pupillary light reflex before the steady-state overlay settles.
-   The animation is triggered via the Web Animations API in app.js. */
-#gaze-flash {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 7;
-  opacity: 0;
-}
+/* Technique 4 (luminance flash) removed */
 
 /* Edge words */
 .edge-word {
