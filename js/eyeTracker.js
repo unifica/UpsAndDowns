@@ -62,7 +62,7 @@ const NO_FACE_HINT_FONT_SIZE_RATIO = 0.045; // font size as a fraction of canvas
 // Returns a ratio in [0, 1] where 0 = iris at top of eye (looking up) and
 // 1 = iris at bottom of eye (looking down).  Returns null if iris data is
 // unavailable (requires refineLandmarks: true, 478 keypoints).
-function computeGazeRatio(kp) {
+function computeVerticalGazeRatio(kp) {
   if (kp.length < 478) return null;
 
   const results = [];
@@ -86,6 +86,52 @@ function computeGazeRatio(kp) {
 
   if (!results.length) return null;
   return results.reduce((a, b) => a + b, 0) / results.length;
+}
+
+// Returns a ratio in [0, 1] where 0 = iris at left of eye (in image coords,
+// i.e. looking screen-left) and 1 = iris at right of eye (looking screen-right,
+// toward the top-right word in the mirrored display).  Returns null if iris
+// data is unavailable.
+function computeHorizontalGazeRatio(kp) {
+  if (kp.length < 478) return null;
+
+  const results = [];
+  for (const [eyeIndices, irisCenterIdx] of [
+    [LEFT_EYE_INDICES, 468],
+    [RIGHT_EYE_INDICES, 473],
+  ]) {
+    const validEye = eyeIndices.filter((i) => i < kp.length);
+    if (!validEye.length) continue;
+
+    const eyePts   = validEye.map((i) => kp[i]);
+    const eyeLeft  = Math.min(...eyePts.map((p) => p.x));
+    const eyeRight = Math.max(...eyePts.map((p) => p.x));
+    const eyeWidth = eyeRight - eyeLeft;
+    if (eyeWidth < 1) continue;
+
+    if (irisCenterIdx >= kp.length) continue;
+    const irisCx = kp[irisCenterIdx].x;
+    results.push((irisCx - eyeLeft) / eyeWidth);
+  }
+
+  if (!results.length) return null;
+  return results.reduce((a, b) => a + b, 0) / results.length;
+}
+
+// Returns a combined diagonal gaze ratio in [0, 1].
+// Low values (→ 0) indicate gaze toward the top-right corner (UP word).
+// High values (→ 1) indicate gaze toward the bottom-left corner (DOWN word).
+// Returns null if iris data is unavailable.
+function computeGazeRatio(kp) {
+  const vertical   = computeVerticalGazeRatio(kp);
+  const horizontal = computeHorizontalGazeRatio(kp);
+  if (vertical === null || horizontal === null) return null;
+  // Combine vertical and horizontal into a single diagonal score.
+  // The horizontal component is inverted so both axes point in the same
+  // direction for each corner:
+  //   Top-right  (UP)   → low vertical  + (1 - high horizontal) = low  + low  → low  score
+  //   Bottom-left (DOWN) → high vertical + (1 - low horizontal)  = high + high → high score
+  return (vertical + (1 - horizontal)) / 2;
 }
 
 // ---------------------------------------------------------------------------
@@ -158,8 +204,8 @@ function drawGlowDot(ctx, x, y, color, radius = 3) {
 }
 
 // Draws a compact vertical gaze-ratio indicator bar on the right edge of the
-// canvas.  The moving dot sits at the smoothed ratio position (0 = top,
-// 1 = bottom).  Threshold lines mark the up/down zones.
+// canvas.  The moving dot sits at the combined diagonal ratio position
+// (0 = top-right, 1 = bottom-left).  Threshold lines mark the up/down zones.
 function drawGazeIndicator(ctx, ratio, canvasWidth, canvasHeight) {
   const barH  = Math.round(canvasHeight * GAZE_INDICATOR_HEIGHT_RATIO);
   const barW  = 6;
