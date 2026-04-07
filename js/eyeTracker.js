@@ -95,7 +95,7 @@ function computeEAR(kp, verticalPairs, horizontalPair) {
     vertSum += dist(kp[topIdx], kp[botIdx]);
   }
   const horiz = dist(kp[horizontalPair[0]], kp[horizontalPair[1]]);
-  if (horiz < 0.0001) return 1; // avoid division by zero
+  if (horiz < 0.0001) return BLINK_EAR_THRESHOLD + 1; // invalid landmarks — treat as not blinking
   return vertSum / (2 * horiz);
 }
 
