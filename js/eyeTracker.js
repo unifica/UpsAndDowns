@@ -50,6 +50,17 @@ const PUPIL_SMOOTHING = 0.15; // EMA factor for iris radius
 const GAZE_THRESHOLD_UP   = 0.43; // ratio below this → looking up
 const GAZE_THRESHOLD_DOWN = 0.57; // ratio above this → looking down
 
+// Pupil-dilation gaze contribution (reset each session)
+// A slow-moving baseline tracks the user's resting pupil size; short-term
+// deviations from that baseline carry a directional signal:
+//   dilated (iris > baseline) → scene got darker  → user is looking toward UP
+//   constricted (iris < baseline) → scene got brighter → user is looking toward DOWN
+let pupilBaseline = null;
+const PUPIL_BASELINE_SMOOTHING = 0.008; // very slow EMA (~125 frames to 63 %)
+const PUPIL_SIGNAL_WEIGHT      = 0.12;  // max contribution to gaze ratio (±)
+const PUPIL_SIGNAL_CLAMP       = 0.20;  // relative deviation clamped to ±20 %
+const PUPIL_BASELINE_MIN       = 0.001; // minimum plausible baseline value (sanity guard)
+
 // Number of consecutive frames a direction must persist before it is reported.
 // This prevents rapid flickering when the gaze ratio hovers near a threshold.
 const GAZE_STABLE_FRAMES = 4;
@@ -182,6 +193,20 @@ function computeIrisRadius(kp) {
   if (iod < 1) return null;
 
   return avgRadius / iod;
+}
+
+// Returns a signed offset in [−PUPIL_SIGNAL_WEIGHT, +PUPIL_SIGNAL_WEIGHT] that
+// nudges the combined gaze ratio based on how much the current (smoothed) pupil
+// size deviates from the long-term baseline:
+//   positive deviation (dilation)   → negative offset → pushes ratio toward 0 (up)
+//   negative deviation (constriction) → positive offset → pushes ratio toward 1 (down)
+// Returns 0 when insufficient data is available.
+function computePupilGazeContribution(currentPupilSize, baseline) {
+  if (baseline === null || baseline < PUPIL_BASELINE_MIN || currentPupilSize === null) return 0;
+  const deviation = (currentPupilSize - baseline) / baseline;
+  const clamped = Math.max(-PUPIL_SIGNAL_CLAMP, Math.min(PUPIL_SIGNAL_CLAMP, deviation));
+  // Invert: dilation (positive) → negative contribution (toward up / lower ratio)
+  return -(clamped / PUPIL_SIGNAL_CLAMP) * PUPIL_SIGNAL_WEIGHT;
 }
 
 // ---------------------------------------------------------------------------
@@ -458,6 +483,7 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
   // Reset smoothing and stability state for each new session
   smoothedGazeRatio = 0.5;
   smoothedPupilSize = null;
+  pupilBaseline     = null;
   let lastDirection    = 'neutral';
   let pendingDirection = 'neutral';
   let stableFrames     = 0;
@@ -508,8 +534,12 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
                 if (onStatus) onStatus('Tracking…');
               }
             } else {
-              // Apply calibration offset so that the user's neutral gaze maps to 0.5
-              const adjusted = raw - calibrationOffset;
+              // Apply calibration offset so that the user's neutral gaze maps to 0.5.
+              // Add the pupil-dilation contribution from the previous frame's
+              // smoothed iris size: dilation (dark scene) nudges the ratio toward
+              // 0 (up), constriction (bright scene) nudges it toward 1 (down).
+              const pupilContrib = computePupilGazeContribution(smoothedPupilSize, pupilBaseline);
+              const adjusted = raw - calibrationOffset + pupilContrib;
               // Exponential moving average smoothing
               smoothedGazeRatio =
                 smoothedGazeRatio + GAZE_SMOOTHING * (adjusted - smoothedGazeRatio);
@@ -557,9 +587,21 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
             }
             pupilSize = smoothedPupilSize;
           }
+          // Update the slow-moving pupil baseline so that only short-term
+          // deviations (caused by the screen luminance change) are treated as
+          // a directional signal, while long-term drift is absorbed.
+          if (smoothedPupilSize !== null) {
+            if (pupilBaseline === null) {
+              pupilBaseline = smoothedPupilSize;
+            } else {
+              pupilBaseline =
+                pupilBaseline + PUPIL_BASELINE_SMOOTHING * (smoothedPupilSize - pupilBaseline);
+            }
+          }
         } else {
           // No face — reset pupil smoothing so next detection starts fresh
           smoothedPupilSize = null;
+          pupilBaseline     = null;
         }
 
         renderOverlay(ctx, faces, scale, offsetX, offsetY, gazeRatio, pupilSize);
