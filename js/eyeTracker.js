@@ -148,13 +148,13 @@ function drawGlowDot(ctx, x, y, color, radius = 3) {
 // Overlay rendering
 // ---------------------------------------------------------------------------
 
-function drawLandmarkDots(ctx, kp, scaleX, scaleY) {
+function drawLandmarkDots(ctx, kp, scale, offsetX, offsetY) {
   for (const point of kp) {
-    drawGlowDot(ctx, point.x * scaleX, point.y * scaleY, LANDMARK_DOT_COLOR, 2);
+    drawGlowDot(ctx, point.x * scale + offsetX, point.y * scale + offsetY, LANDMARK_DOT_COLOR, 2);
   }
 }
 
-function renderOverlay(ctx, faces, scaleX, scaleY) {
+function renderOverlay(ctx, faces, scale, offsetX, offsetY) {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   if (!faces || faces.length === 0) return;
 
@@ -162,7 +162,7 @@ function renderOverlay(ctx, faces, scaleX, scaleY) {
     const kp = face.keypoints;
 
     // --- Bright green dots for all detected facial feature positions ---
-    drawLandmarkDots(ctx, kp, scaleX, scaleY);
+    drawLandmarkDots(ctx, kp, scale, offsetX, offsetY);
 
     // --- Eye contour ellipses ---
     for (const [indices, color] of [
@@ -172,8 +172,8 @@ function renderOverlay(ctx, faces, scaleX, scaleY) {
       const valid = indices.filter((i) => i < kp.length);
       if (!valid.length) continue;
       const pts = valid.map((i) => ({
-        x: kp[i].x * scaleX,
-        y: kp[i].y * scaleY,
+        x: kp[i].x * scale + offsetX,
+        y: kp[i].y * scale + offsetY,
       }));
       drawGlowEllipse(ctx, getBounds(pts), color);
     }
@@ -187,8 +187,8 @@ function renderOverlay(ctx, faces, scaleX, scaleY) {
         const valid = indices.filter((i) => i < kp.length);
         if (!valid.length) continue;
         const pts = valid.map((i) => ({
-          x: kp[i].x * scaleX,
-          y: kp[i].y * scaleY,
+          x: kp[i].x * scale + offsetX,
+          y: kp[i].y * scale + offsetY,
         }));
         // pts[0] is the iris center in MediaPipe's ordering
         drawGlowEllipse(ctx, getBounds(pts), color, 1);
@@ -201,8 +201,8 @@ function renderOverlay(ctx, faces, scaleX, scaleY) {
       const valid = NOSE_INDICES.filter((i) => i < kp.length);
       if (valid.length) {
         const pts = valid.map((i) => ({
-          x: kp[i].x * scaleX,
-          y: kp[i].y * scaleY,
+          x: kp[i].x * scale + offsetX,
+          y: kp[i].y * scale + offsetY,
         }));
         drawGlowEllipse(ctx, getBounds(pts), NOSE_COLOR);
       }
@@ -213,8 +213,8 @@ function renderOverlay(ctx, faces, scaleX, scaleY) {
       const valid = indices.filter((i) => i < kp.length);
       if (!valid.length) continue;
       const pts = valid.map((i) => ({
-        x: kp[i].x * scaleX,
-        y: kp[i].y * scaleY,
+        x: kp[i].x * scale + offsetX,
+        y: kp[i].y * scale + offsetY,
       }));
       drawGlowEllipse(ctx, getBounds(pts), MOUTH_COLOR);
     }
@@ -242,29 +242,17 @@ export function startTracking(video, canvas, onGaze) {
 
       try {
         const faces = await detector.estimateFaces(video);
-        const scaleX = canvas.width  / video.videoWidth;
-        const scaleY = canvas.height / video.videoHeight;
-        renderOverlay(ctx, faces, scaleX, scaleY);
-
-        if (onGaze) {
-          if (faces && faces.length > 0) {
-            const raw = computeGazeRatio(faces[0].keypoints);
-            if (raw !== null) {
-              smoothedGazeRatio =
-                GAZE_SMOOTHING * raw + (1 - GAZE_SMOOTHING) * smoothedGazeRatio;
-              const direction =
-                smoothedGazeRatio < GAZE_THRESHOLD_UP   ? 'up'   :
-                smoothedGazeRatio > GAZE_THRESHOLD_DOWN ? 'down' : 'neutral';
-              if (direction !== lastDirection) {
-                lastDirection = direction;
-                onGaze(direction);
-              }
-            }
-          } else if (lastDirection !== 'neutral') {
-            lastDirection = 'neutral';
-            onGaze('neutral');
-          }
-        }
+        // Compute the same transform that CSS `object-fit: cover` applies so
+        // that landmark coordinates (in video pixels) map exactly onto the
+        // canvas pixels that show that part of the frame.
+        const cw = canvas.width;
+        const ch = canvas.height;
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        const scale = Math.max(cw / vw, ch / vh);
+        const offsetX = (cw - vw * scale) / 2;
+        const offsetY = (ch - vh * scale) / 2;
+        renderOverlay(ctx, faces, scale, offsetX, offsetY);
       } catch (err) {
         console.warn('Face detection error:', err);
       }
