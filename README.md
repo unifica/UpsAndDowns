@@ -49,6 +49,19 @@ Because the app loads models from a CDN and registers a service worker, it needs
 4. The overlay highlights your eye contours and irises in real time.
 5. Click **Stop** to end the session and release the camera.
 
+## How the trick works — pupil-dilation techniques
+
+The app actively manipulates the visual scene to **cause** the pupil to dilate when the user looks at UP and to constrict when they look at DOWN.  Once the AI detects a reliable difference in iris size, it can reveal the chosen word — the "mind reading" is really controlled physiology.
+
+Four complementary techniques are applied simultaneously whenever the gaze direction is determined:
+
+| # | Technique | Mechanism |
+|---|---|---|
+| 1 | **Screen luminance overlay** | A radial-gradient overlay dims the entire scene to near-black (UP) or floods it with a white spotlight (DOWN), directly driving the **pupillary light reflex**. |
+| 2 | **Background luminance gradient** | The page background is a static top-to-bottom gradient — near-black at the top where UP lives, progressively lighter toward the bottom where DOWN lives.  This creates a passive, always-on luminance bias with no gaze signal required. |
+| 3 | **Color temperature of the active word** | UP glows warm amber (#ffcc77 + orange halos); DOWN glows cool blue (#aaddff + blue halos).  Long-wavelength warm light is processed differently by the ipRGC melanopsin pathway, contributing to a relatively lower constriction drive compared with short-wavelength blue light. |
+| 4 | **Luminance flash on transition** | When the gaze direction changes, a brief dark burst (UP) or bright burst (DOWN) is animated via the Web Animations API, rapidly driving the light reflex before the steady-state overlay settles. |
+
 ## Browser support
 
 Any modern browser with WebGL and `getUserMedia` support works. Chrome / Edge on desktop and Android give the best performance.

@@ -26,6 +26,7 @@ const debugUpLabel    = document.getElementById('debug-bar-up-label');
 const debugDownFill   = document.getElementById('debug-bar-down-fill');
 const debugDownLabel  = document.getElementById('debug-bar-down-label');
 const pupilSizeEl     = document.getElementById('pupil-size-value');
+const gazeFlashEl     = document.getElementById('gaze-flash');
 
 let running = false;
 
@@ -33,10 +34,32 @@ function setStatus(message) {
   statusEl.textContent = message;
 }
 
+// Technique 4: brief luminance flash when gaze direction changes.
+// A short burst of darkness (UP) or brightness (DOWN) rapidly drives the
+// pupillary light reflex before the steady-state overlay settles.
+function triggerGazeFlash(direction) {
+  if (!gazeFlashEl || direction === 'neutral') return;
+  const color = direction === 'up' ? '#000' : '#fff';
+  gazeFlashEl.style.background = color;
+  // Cancel any in-progress animation before restarting
+  gazeFlashEl.getAnimations().forEach((a) => a.cancel());
+  gazeFlashEl.animate(
+    [{ opacity: 0.88 }, { opacity: 0 }],
+    { duration: 480, easing: 'ease-out', fill: 'forwards' },
+  );
+}
+
 function setGaze(direction) {
   if (!wordUp || !wordDown) return;
   wordUp.classList.toggle('edge-word--active', direction === 'up');
   wordDown.classList.toggle('edge-word--active', direction === 'down');
+  // Technique 1: apply body class so the luminance overlay and gradient
+  // changes take effect (CSS handles the visual transition).
+  document.body.classList.remove('gaze-up', 'gaze-down');
+  if (direction === 'up') document.body.classList.add('gaze-up');
+  else if (direction === 'down') document.body.classList.add('gaze-down');
+  // Technique 4: luminance flash
+  triggerGazeFlash(direction);
 }
 
 function updateDebugBars(gazeRatio) {
