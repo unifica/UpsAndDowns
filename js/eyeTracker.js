@@ -703,11 +703,14 @@ export function startTracking(video, canvas, onGaze, onGazeRatio, onStatus, onPu
       // Keep canvas pixel dimensions in sync with its CSS display size
       const dw = canvas.clientWidth;
       const dh = canvas.clientHeight;
-      // Guard: do not collapse the canvas to 0×0 when the section is hidden
-      // (display:none makes clientWidth/clientHeight return 0).  Preserving the
-      // last known dimensions keeps the tracking loop healthy and avoids needing
-      // a full re-initialisation when the preview is revealed again.
-      if (dw > 0 && dh > 0 && (canvas.width !== dw || canvas.height !== dh)) {
+      // Guard: preserve canvas dimensions when the section is hidden.
+      // - display:none makes clientWidth/clientHeight return 0
+      // - The 'preview-hidden' CSS trick (position:absolute; width:1px; height:1px)
+      //   makes them return 1.
+      // In both cases skip the resize and keep the last valid pixel dimensions so
+      // that the tracking loop stays healthy (correct scale/offsets, no 0px fonts
+      // in renderOverlay) and needs no re-initialisation when the preview is shown.
+      if (dw > 1 && dh > 1 && (canvas.width !== dw || canvas.height !== dh)) {
         canvas.width  = dw;
         canvas.height = dh;
       }
