@@ -6,35 +6,134 @@
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Word replacement — the UP label is swapped for a randomly chosen
-// complicated word each time the page loads.
+// Sentence replacement — the UP label is swapped for a randomly chosen
+// complex sentence and the DOWN label for a simple sentence each page load.
 // ---------------------------------------------------------------------------
-(function replaceUpWord() {
+(function replaceSentences() {
   'use strict';
 
-  var WORDS = [
-    'Ephemeral', 'Mellifluous', 'Serendipity', 'Perspicacious', 'Loquacious',
-    'Magnanimous', 'Ineffable', 'Ethereal', 'Resplendent', 'Nefarious',
-    'Quintessential', 'Perfidious', 'Incandescent', 'Ubiquitous', 'Equivocal',
-    'Sycophantic', 'Crepuscular', 'Diaphanous', 'Melancholic', 'Obsequious',
-    'Tenacious', 'Vicissitude', 'Sesquipedalian', 'Supercilious', 'Gossamer',
-    'Defenestration', 'Callipygian', 'Schadenfreude', 'Weltanschauung', 'Zugzwang',
-    'Absquatulate', 'Collywobbles', 'Flibbertigibbet', 'Widdershins', 'Labyrinthine',
-    'Surreptitious', 'Pulchritude', 'Soliloquy', 'Limpid', 'Euphonious',
-    'Perspicuity', 'Recalcitrant', 'Obstreperous', 'Exacerbate', 'Plethora',
-    'Ostentatious', 'Pontificate', 'Nonchalant', 'Superfluous', 'Discombobulate'
+  var COMPLEX_SENTENCES = [
+    'The ephemeral luminescence perpetuates existential nocturnal contemplation.',
+    'Perspicacious observers elucidate labyrinthine philosophical constructs.',
+    'Mellifluous cadences permeate the subconscious perceptual apparatus.',
+    'Serendipitous concatenation of circumstance engenders unprecedented metamorphosis.',
+    'Loquacious orators obfuscate substantive discourse with circumlocutory rhetoric.',
+    'The magnanimous benefactor ameliorates the penurious circumstances of others.',
+    'Ineffable transcendence characterizes the quintessential metaphysical experience.',
+    'Resplendent iridescence of the ethereal nebula defies perspicuous comprehension.',
+    'Nefarious machinations precipitate inevitable cataclysmic repercussions.',
+    'Ubiquitous equivocation permeates the labyrinthine bureaucratic apparatus.',
+    'Sycophantic supplicants perpetuate the iniquitous hegemonic discourse.',
+    'Crepuscular phenomena engender melancholic existential ruminations.',
+    'Diaphanous ephemera eludes the perspicacious cognoscenti and neophytes alike.',
+    'Obsequious deliberations obfuscate the substantive philosophical quandaries.',
+    'Tenacious perseverance necessitates extraordinary psychological fortitude.',
+    'Vicissitudes of circumstance precipitate inexplicable ontological transformations.',
+    'Sesquipedalian tendencies obfuscate otherwise lucid communicative exchanges.',
+    'Supercilious demeanors engender considerable antagonism and consternation.',
+    'Gossamer philosophical constructs perplex the uninitiated intellect considerably.',
+    'Defenestration of outmoded paradigms necessitates scrupulous epistemological reconsideration.',
+    'Schadenfreude permeates the surreptitious observations of perfidious individuals.',
+    'Weltanschauung transcends conventional perspectival limitations of cognition.',
+    'Obstreperous neophytes promulgate iniquitous heterodox philosophical ideologies.',
+    'Ostentatious pontificating perpetuates mendacious societal misconceptions.',
+    'Recalcitrant superciliousness precipitates deleterious interpersonal ramifications.',
+    'Perspicuous articulation necessitates scrupulous attention to lexical precision.',
+    'Ineffable melancholic luminescence engenders crepuscular existential contemplation.',
+    'Circumlocutory deliberations perpetuate unresolvable philosophical paradoxes.',
+    'Idiosyncratic proclivities engender labyrinthine interpersonal complications.',
+    'Subliminal concatenations of semiotics perpetuate hegemonic ideological discourse.',
+    'Interminable deliberations circumvent expeditious administrative resolutions.',
+    'Surreptitious machinations undermine ostensibly benevolent philanthropic endeavors.',
+    'Clandestine communications precipitate irreversible geopolitical ramifications.',
+    'Mendacious representations promulgate iniquitous societal misconceptions.',
+    'Quotidian phenomena belie the underlying metaphysical complexities therein.',
+    'Recondite philosophical treatises elucidate ineffable cosmological phenomena.',
+    'Nebulous premonitions precipitate inexplicable psychological transformations.',
+    'Disingenuous platitudes proliferate in ostentatious rhetorical discourse.',
+    'Veridical representations necessitate scrupulous epistemological investigations.',
+    'Circumspect individuals deliberate exhaustively before consequential determinations.',
+    'Perspicacious cognition transcends conventional paradigmatic limitations.',
+    'Extemporaneous deliberations precipitate unforeseen epistemological revelations.',
+    'Intransigent ideological positions perpetuate unresolvable philosophical quandaries.',
+    'Equanimity characterizes the quintessential philosophical temperament therein.',
+    'Phenomenological manifestations perplex both cognoscenti and neophytes alike.',
+    'Grandiose pretentions belie the underlying insipid philosophical constructs.',
+    'Ephemeral oscillations perpetuate interminable philosophical contemplation.',
+    'Inexorable vicissitudes characterize the ontological human predicament.',
+    'Pellucid articulation necessitates scrupulous attention to lexical precision.',
+    'Pulchritudinous soliloquies engender ineffable melancholic ruminative contemplation.'
   ];
 
-  function setRandomWord() {
-    var el = document.querySelector('.up-text');
-    if (!el) return;
-    el.textContent = WORDS[Math.floor(Math.random() * WORDS.length)];
+  var SIMPLE_SENTENCES = [
+    'The dog runs fast in the yard.',
+    'She drinks a cup of hot tea.',
+    'The sun comes up in the east.',
+    'He goes to bed at ten.',
+    'They eat lunch by the big tree.',
+    'The cat sits on the warm mat.',
+    'A bird flies over the red house.',
+    'We walk to the shop each day.',
+    'The kids play games in the park.',
+    'He reads a book in his room.',
+    'She buys fresh bread from the store.',
+    'The fish swim deep in the sea.',
+    'We sit and watch the rain fall.',
+    'The moon lights up the dark sky.',
+    'A boy runs home after school.',
+    'She puts the cup on the shelf.',
+    'He opens the door to let them in.',
+    'The wind blows the leaves off the tree.',
+    'They swim in the cool blue lake.',
+    'A dog barks at the gate.',
+    'She cleans the floor with a wet mop.',
+    'He drives to work each day.',
+    'The kids eat ice cream in the heat.',
+    'A boat sails out to sea.',
+    'She hangs the wash out to dry.',
+    'He digs a hole in the soft dirt.',
+    'The train stops at each small town.',
+    'A cow eats grass in the field.',
+    'She fills the pot with cold water.',
+    'He cuts the bread with a sharp knife.',
+    'The bird sings in the tall pine tree.',
+    'We push the cart down the long hall.',
+    'She picks the red roses from the bush.',
+    'He waits for the bus in the cold.',
+    'The child draws a big sun on paper.',
+    'We fry the eggs in a pan.',
+    'She ties her shoes and goes outside.',
+    'He lifts the box and puts it down.',
+    'The dog brings the ball back to him.',
+    'We sit by the fire on cold nights.',
+    'She gives the cat a bowl of milk.',
+    'He paints the old fence white.',
+    'The kids jump in the piles of leaves.',
+    'A bus full of kids goes by.',
+    'She pours the soup into a big bowl.',
+    'He throws a stone into the pond.',
+    'The old man feeds the ducks at the lake.',
+    'We pick up sticks from the wet grass.',
+    'She turns off the light and goes to sleep.',
+    'He plants seeds in the warm dark earth.'
+  ];
+
+  function pickRandom(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  function setRandomSentences() {
+    var upEl = document.querySelector('.up-text');
+    if (upEl) upEl.textContent = pickRandom(COMPLEX_SENTENCES);
+
+    var downEl = document.querySelector('.down-text');
+    if (downEl) downEl.textContent = pickRandom(SIMPLE_SENTENCES);
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setRandomWord);
+    document.addEventListener('DOMContentLoaded', setRandomSentences);
   } else {
-    setRandomWord();
+    setRandomSentences();
   }
 })();
 
