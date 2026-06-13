@@ -206,18 +206,18 @@ body {
 /* Edge words */
 .edge-word {
   position: fixed;
-  font-size: clamp(3rem, 12vw, 8rem);
+  font-size: clamp(0.75rem, 2vw, 1rem);
   font-weight: 900;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: var(--color-text);
   pointer-events: none;
-  line-height: 1;
+  line-height: 1.4;
   z-index: 10;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.08em;
+  max-width: min(45vw, 340px);
 }
 
 /* --------------------------------------------------------------------------
@@ -360,7 +360,7 @@ body {
   color: #2a2a2a;
   filter: blur(1.5px);
   text-shadow: 0 0 12px rgba(0, 0, 0, 0.8);
-  font-size: clamp(1.5rem, 6vw, 4rem);
+  font-size: clamp(0.7rem, 1.8vw, 1rem);
   /* Dark vignette halo around the UP word deepens the ambient darkness,
      ensuring the retinal illuminance is as low as possible. */
   background: radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, transparent 70%);
