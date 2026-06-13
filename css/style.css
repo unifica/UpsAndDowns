@@ -146,9 +146,10 @@ body {
   cursor: default;
 }
 
-/* Hidden camera preview — the section is hidden by moving off-screen rather
+/* Hidden camera preview — the section is moved off-screen to 1×1 px rather
    than display:none, so the <video> element continues to receive frames and
-   MediaPipe tracking is unaffected. */
+   MediaPipe tracking is unaffected.  The canvas guard in eyeTracker.js treats
+   dimensions ≤ 1 as "hidden" and preserves the last valid pixel dimensions. */
 #camera-section.preview-hidden {
   position: absolute;
   width: 1px;
